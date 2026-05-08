@@ -34,6 +34,7 @@ services:
       # Change ONLY the path to the LEFT of '/bose-soundtouch-hybrid' 
       # to match your specific NAS storage structure.
       - /share/Container/bose-soundtouch-hybrid:/app/config
+      - /share/Container/bose-soundtouch-hybrid/logs:/app/logs
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock
       
