@@ -248,10 +248,34 @@ router.post('/streaming/support/power_on', (req, res) => {
             const npData = await parser.parseStringPromise(npRes.data);
             const setupData = await parser.parseStringPromise(setupRes.data);
             
-            const margeId = infoData?.info?.margeAccountUUID;
-            const isBlank = !margeId || (typeof margeId === 'string' && margeId.trim() === '');
-            const isStuckInSetup = (npData?.nowPlaying?.['$']?.source === 'SETUP');
-            const isLangNotSet = (setupData?.setupStateResponse?.['$']?.systemstate === 'SETUP_LANG_NOT_SET');
+			// 1. Sanitize the Marge ID Check (Force pseudo-empty values to null)
+            let margeId = infoData?.info?.margeAccountUUID;
+            
+            if (
+                margeId === undefined || 
+                (typeof margeId === 'string' && margeId.trim() === '') || 
+                (typeof margeId === 'object' && Object.keys(margeId).length === 0)
+            ) {
+                margeId = null; 
+            }
+            
+            const isBlank = (margeId === null);
+            
+            // 2. Check System States Safely
+            const npSource = npData?.nowPlaying?.['$']?.source || 'UNKNOWN';
+            const sysState = setupData?.setupStateResponse?.['$']?.systemstate || 'UNKNOWN';
+            
+            const isStuckInSetup = (npSource === 'SETUP');
+            const isLangNotSet = (sysState === 'SETUP_LANG_NOT_SET');
+
+            // ----------------------------------------------------------------
+            // VERBOSE TRIPLE THREAT DIAGNOSTIC LOG
+            // ----------------------------------------------------------------
+            console.log(`\n[Bose Cloud] --- TRIPLE THREAT CHECK FOR ${reqIp} ---`);
+            console.log(`[Bose Cloud] 1. Marge ID:    ${margeId === null ? "NULL (Sanitized)" : JSON.stringify(margeId)} | isBlank? ${isBlank}`);
+            console.log(`[Bose Cloud] 2. NP Source:   ${npSource} | isStuck? ${isStuckInSetup}`);
+            console.log(`[Bose Cloud] 3. Setup State: ${sysState} | isLangNotSet? ${isLangNotSet}`);
+            console.log(`[Bose Cloud] ------------------------------------------------`);
 
             if (isBlank || isStuckInSetup || isLangNotSet) {
                 console.log(`[Bose Cloud] 🔧 Speaker ${reqIp} failed Triple Threat Check. Executing NVRAM Gabbo Fix...`);
