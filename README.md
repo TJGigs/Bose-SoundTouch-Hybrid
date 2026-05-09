@@ -3,8 +3,9 @@
 Unfortunately, I will be on vacation for 2 weeks (May 9th-26) with very limited access and just my iPhone 13 mini. So please be patient. You and this app are very important to me. I built this app just for me because I was so pisseed off at Bose. And then decide to share it and try to keep making it better. So I want to address any and all issues but without my computer and the fact my wife would not appreciate me doing “production support” while on vacation, my responses and debugging etc. will be delayed. Thanks for your patience. BTW if you are in Greece and want to meet for coffee I would be down…😊  (It’s a Rick Steve’s Tour)
 
 # ***ALSO Another Note: 
-Unless you are part of debugging efforts for your issue #20 or you are new and get issue #20 please make sure u Do Not change your docker yml from v3.  (do not put in latest, or v3.1 or v3.2 or v3.3) these are debug version used to research issues)***
-The latest debug logging version is v3.3
+Unless you are part of debugging efforts for your issue #20 or you are new and get issue #20 please make sure u do Not change your docker yml from v3.  (do not put in latest, or v3.1 or v3.2 or v3.3) these are debug version used to research issues)***
+
+***The latest debug logging version is v3.3***
 
 
 # <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3
