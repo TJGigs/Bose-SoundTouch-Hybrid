@@ -1,4 +1,4 @@
-# TJGigs is "OUT_OF-OFFICE" MAY 9Th-26 (temporary)  WILL WORK ON AND SOLVE ALL ISSUES WHEN I GET BACK! THanks for your Patience!
+# TJGigs is "OUT_OF-OFFICE" MAY 9Th-26 (will be back soon!)  WILL WORK ON AND SOLVE ALL ISSUES WHEN I GET BACK! THanks for your Patience!
 # ***Special note:***
 Unfortunately, I will be on vacation for 2 weeks (May 9th-26) with very limited access and just my iPhone 13 mini. So please be patient. You and this app are very important to me. I built this app just for me because I was so pisseed off at Bose. And then decide to share it and try to keep making it better. So I want to address any and all issues but without my computer and the fact my wife would not appreciate me doing “production support” while on vacation, my responses and debugging etc. will be delayed. Thanks for your patience. BTW if you are in Greece and want to meet for coffee I would be down…😊  (It’s a Rick Steve’s Tour)
 
