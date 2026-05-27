@@ -40,9 +40,29 @@ services:
       - NODE_ENV=production
       - TRUST_PROXY=${TRUST_PROXY:-false}   
     volumes:
-      # Maps app's internal config directly to the current directory 
-      - ./:/app/config
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock
       
-    restart: unless-stopped 
+      # ==========================================================
+      # VOLUME CONFIGURATION: CHOOSE METHOD A OR METHOD B
+      # ==========================================================
+      
+      # METHOD A: For Plain Docker Compose / CLI Users (Standard Active)
+      - ./:/app/config   
+      
+      ###############################################################################
+      # METHOD B: For NAS GUI Users (QNAP / Synology / Portainer Web)
+      # INSTRUCTIONS: Some Web interfaces require absolute paths. Like my QNAP 
+      # because it does not know exactly where you saved this file and folder on your NAS
+      # YOU MUST change the text on the LEFT side of the colon to your actual absolute path.
+      # Leave the right side (:/app/config) exactly as it is.
+      #
+      # IMPORTANT: If you use this method, you MUST comment out (add a '#' to) 
+      # the "METHOD A" line above to prevent mapping conflicts.
+      #
+      # Example: Uncomment and edit the line below:
+      ################################################################################
+      
+      # - /your/actual/absolute/path/here:/app/config
+ 
+ restart: unless-stopped
