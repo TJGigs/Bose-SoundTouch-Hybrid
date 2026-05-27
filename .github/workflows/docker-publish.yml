@@ -32,9 +32,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # 3. ADDED: Smart Metadata Extraction
-      # This safely handles tags! 
-      # - Pushing to 'main' creates tag: edge
-      # - Pushing tag 'v4' creates tags: v4 AND latest
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -42,8 +39,7 @@ jobs:
           images: ghcr.io/tjgigs/bose-soundtouch-hybrid-2026
           tags: |
             type=edge,branch=main
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}
+            type=match,pattern=(v.*),group=1
 
       - name: Build and push
         uses: docker/build-push-action@v5
