@@ -27,9 +27,9 @@ function injectPort17000Commands(ip, commands) {
             
             // Bypass lazy-load bug with wake-up carriage returns
             client.write('\r\n');
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 1000));
             client.write('sys configuration\r\n');
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 1500));
 
 			// Sequential injection with universal NVRAM delays
             for (let i = 0; i < commands.length; i++) {
@@ -83,22 +83,26 @@ function telnetJanitor(ip) {
                     client.write('rm -fv /var/lib/Bose/PersistenceDataRoot/OverrideSdkPrivateCfg.xml\r\nsync\r\n');
 
                     setTimeout(() => {
-                        // Error trapping based on shell response
-                        if (shellOutput.includes('No such file')) {
-                            console.log(`   ├─ ⚠️ [Janitor] Notice: File was already gone or path is incorrect.`);
+                        // Error trapping based on shell response					
+					if (shellOutput.includes('No such file')) {
+                            console.log(`   ├─ ⚠️ [Janitor] Notice: File was already gone. Skipping reboot.`);
+                            client.destroy();
+                            resolve(false);
                         } else if (shellOutput.toLowerCase().includes('error')) {
                             console.log(`   ├─ ❌ [Janitor] Error wiping file! Check shell output.`);
+                            client.destroy();
+                            resolve(false);
                         } else {
                             console.log(`   ├─ [Janitor] ✅ File successfully deleted from memory.`);
-                        }
+                            console.log(`   ├─ [Janitor] Rebooting to clear memory...`);
+                            client.write('reboot\r\n');
 
-                        console.log(`   ├─ [Janitor] Rebooting to clear memory...`);
-                        client.write('reboot\r\n');
-
-                        setTimeout(() => {
-                            client.destroy();
-                            resolve(true); 
-                        }, 500);
+                            setTimeout(() => {
+                                client.destroy();
+                                resolve(true); 
+                            }, 500);
+                        }							
+						
                     }, 2000); 
                 }, 1000); 
             }, 500); 
@@ -220,21 +224,29 @@ async function runSetup(forceMode = false, targetIp = 'all') {
 			// log too display MargeId
             console.log(`   ├─ 🎯 Target MargeID: ${targetMargeId}`);
             const commandList = [];
-
-            if (!hasMargeId) {
-                commandList.push(`envswitch AccountId set ${targetMargeId}`);
-            }
-
-            // Stack all the configuration commands into an array
+			
+			// Stack URLs first so they don't get blocked by EPIPE
             commandList.push(`sys configuration bmxRegistryUrl http://${APP_IP}:${APP_PORT}/bmx/registry/v1/services`);
             commandList.push(`sys configuration statsServerUrl http://${APP_IP}:${APP_PORT}`);
             commandList.push(`sys configuration margeServerUrl http://${APP_IP}:${APP_PORT}/marge`);
             commandList.push(`sys configuration swUpdateUrl http://${APP_IP}:${APP_PORT}/updates/soundtouch`);
             commandList.push(`envswitch boseurls set http://${APP_IP}:${APP_PORT} http://${APP_IP}:${APP_PORT}/updates/soundtouch`);
-            commandList.push(`sys remote_service on`);
+            commandList.push(`sys remote_service on`);		
+			// ADD COMMAND TO MATCH ISSUE 20 WORKAROUND - Force processor to pause and read its own config
+            commandList.push(`getpdo CurrentSystemConfiguration`)
+            // Push AccountId LAST like Issue 20 WorkAround
+			if (!hasMargeId || isForceTarget) {
+                commandList.push(`envswitch AccountId set ${targetMargeId}`);
+            }
 
-			console.log(`   ├─ ✍️  Writing configurations sequentially (this takes a few seconds)...`);
-            await injectPort17000Commands(speaker.ip, commandList);
+            console.log(`   ├─ ✍️  Writing configurations sequentially (this takes a few seconds)...`);
+            const injectionSuccess = await injectPort17000Commands(speaker.ip, commandList);
+
+            // Trap EPIPE failure and abort reboot
+            if (!injectionSuccess) {
+                console.log(`   └─ ❌ Injection failed due to socket error. Aborting setup for ${speaker.name}.`);
+                continue; 
+            }
 
             console.log(`   ├─ ⏳ Waiting 10 seconds for NVRAM to safely write to flash memory...`);
             await new Promise(resolve => setTimeout(resolve, 10000));
@@ -242,7 +254,6 @@ async function runSetup(forceMode = false, targetIp = 'all') {
             console.log(`   └─ 🧠 Save complete. Rebooting ${speaker.name}...`);
             await injectPort17000Commands(speaker.ip, [`sys reboot`]);
             rebootedIps.push(speaker.ip);
-
         } catch (err) {
             console.log(`[Pre-Flight] ❌ Could not reach ${speaker.ip}: ${err.message}`);
         }
@@ -250,4 +261,4 @@ async function runSetup(forceMode = false, targetIp = 'all') {
     return { success: true, rebootedIps };
 }
 
-module.exports = { runSetup }; 
+module.exports = { runSetup };
