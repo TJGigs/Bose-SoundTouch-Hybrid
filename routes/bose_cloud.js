@@ -249,10 +249,14 @@ router.get('/streaming/account/:id/full', async (req, res) => {
 // ============================================================================
 // NOISY BOSE TELEMETRY TRAPS (Silently dropped)
 // ============================================================================
-router.post('/events*', (req, res) => res.status(200).send("OK"));
+
+// Express 5 Native RegExp Catch-Alls (No quotes!)
+router.post(/^\/events.*/, (req, res) => res.status(200).send("OK"));
+router.post(/^\/v1\/scmudc.*/, (req, res) => res.status(200).send());
+router.get(/^\/updates.*/, (req, res) => res.status(404).send("Not Found"));
+
+// Standard Express 5 Parameter Routes
 router.delete('/streaming/account/:id/device/:deviceId', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
-router.post('/v1/scmudc/*', (req, res) => res.status(200).send());
-router.get('/updates*', (req, res) => res.status(404).send("Not Found"));
 router.post(['/streaming/account/:id/device', '/streaming/account/:id/device/'], (req, res) => res.status(201).send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
 router.put('/streaming/account/:id/device/:deviceId', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
 router.get('/streaming/account/:id/device/:deviceId/group/', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><group/>'));
@@ -262,4 +266,4 @@ router.get('/streaming/account/:id/provider_settings', (req, res) => res.send('<
 router.get('/streaming/device/:id/streaming_token', (req, res) => res.status(404).send('Not Found'));
 router.use('/radio', (req, res) => res.status(200).send("OK"));
 
-module.exports = router; 
+module.exports = router;
