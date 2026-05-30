@@ -35,6 +35,9 @@ async function evaluateHandshake(ip) {
     const state = handshakeTracker[ip];
     if (!state) return;
 
+    // Evaluate success condition once to keep the code below clean and readable
+    const isSuccess = state.presets && state.sourceProviders && state.bmx;
+
     if (isDebug()) {
         console.log(`\n=======================================================================`);
         console.log(`[Bose Cloud] HANDSHAKE DIAGNOSTIC REPORT FOR ${ip}`);
@@ -45,17 +48,22 @@ async function evaluateHandshake(ip) {
         console.log(` 4. Marge Presets (Profile):   ${state.presets ? '✅ YES' : '❌ NO'}`);
         console.log(`-----------------------------------------------------------------------`);
 
-        if (state.presets && state.sourceProviders && state.bmx) {
+        if (isSuccess) {
             console.log(`[Bose Cloud] 🎉 STATUS: Good. Cloud Routing fully working.`);
         } else {
             console.log(`[Bose Cloud] ⚠️ STATUS: INCOMPLETE HANDSHAKE. Check network stability.`);
         }
         console.log(`=======================================================================\n`);
-    } else {
-        if (state.presets && state.sourceProviders && state.bmx) {
+        
+	} else {
+        // Standard (Non-Debug) Logging
+        if (isSuccess) {
             console.log(`[Bose Cloud] ✅ Cloud Handshake Sequence Complete for ${ip}`);
+        } else {
+            console.log(`[Bose Cloud] ⚠️ NOTE: Handshake unconfirmed for ${ip} (possible network/timing delay). If presets fail, enable Debug Mode.`);
         }
     }
+    
     delete handshakeTracker[ip];
 }
 
@@ -189,9 +197,14 @@ router.post('/streaming/support/power_on', (req, res) => {
     if (isDebug()) console.log(`[Bose Cloud] ⚡ Power On Signal Handled for ${reqIp}`);
     res.send('<status>success</status>'); 
 	
-    // Init Tracker and wait 15 seconds for boot sequence to finish
-    handshakeTracker[reqIp] = { powerOn: true, bmx: false, sourceProviders: false, presets: false };
-    setTimeout(() => evaluateHandshake(reqIp), 15000);
+	// FIX: Only initialize the tracker if one doesn't already exist.
+    // This prevents late power_on pings from erasing a successful handshake!
+    if (!handshakeTracker[reqIp]) {
+        handshakeTracker[reqIp] = { powerOn: true, bmx: false, sourceProviders: false, presets: false };
+        
+        // Give slow speakers 30 seconds to fully boot and pull XMLs instead of 15
+        setTimeout(() => evaluateHandshake(reqIp), 30000);
+    }
 });
 
 // 2. BMX Registry (Cloud Routing)
