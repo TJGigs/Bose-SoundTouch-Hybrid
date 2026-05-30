@@ -303,6 +303,13 @@
 
     // 3. Scoring Phase: Sorts the Root devices based on Priority Tiers.
     roots.sort((a, b) => {
+		// --- DISABLE AUTO-SORT ON DESKTOP ---
+        // If the screen is wider than 768px (Desktop/Tablet), bypass the 
+        // priority scoring and just sort by the original JSON config order.
+        if (window.innerWidth > 768) {
+            return a.originalIndex - b.originalIndex;
+        }
+	
         const getScore = (d) => {
 			
 			// Tier 1: Group Master (Top Priority)
@@ -761,4 +768,4 @@
   console.log("Bose Hybrid Controller - BACKEND-DRIVEN PAUSE");
 </script>
 </body>
-</html> 
+</html>
