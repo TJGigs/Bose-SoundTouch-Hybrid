@@ -1,7 +1,7 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.4";
+const CURRENT_VERSION = "v3.4.2";
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 
 const express = require('express');
@@ -401,4 +401,4 @@ if (!isReady) {
     }
 
     app.listen(PORT, '0.0.0.0', systemBoot);
-} // <--- This closes the Gatekeeper "else" block! 
+} // <--- This closes the Gatekeeper "else" block!
