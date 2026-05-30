@@ -134,9 +134,9 @@
       <div class="search-bar">
         <input type="text" id="q" placeholder="Search..." onkeydown="if(event.key==='Enter') doSearch()">
         <select id="limit" onchange="doSearch()">
-            <option value="100" selected>100</option>
-            <option value="500">500</option>
-            <option value="1000">1000</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
         </select>
         <button class="primary" onclick="doSearch()">Go</button>
       </div>
@@ -1063,4 +1063,4 @@ async function renderSpeakerList() {
 
 </script>
 </body>
-</html> 
+</html>
