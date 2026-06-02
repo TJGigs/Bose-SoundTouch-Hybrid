@@ -1,6 +1,6 @@
 # V3.4 Quick Notes: 
 * 🔊 Addresses most of the known bugs including issue 20
-* 🔊 **Includes a complete revamp of the Bose cloud emulation inject sequence. It is now completely automated (does not require USB Hijack)**
+* 🔊 Includes a complete revamp of the Bose cloud emulation inject sequence. It is now completely automated (does not require USB Hijack)
 * 🔊 Bose Cloud (Hybrid) has been simplified and is more stable. Prior heavy lifting moved to new Pre-Flight module
 
 ## Future Releases and Timing:
@@ -9,15 +9,11 @@
 
 ### ***BTW: You can see status of issues, discussions and timings using the list labels filters.***
 
-## [Jump To Install Instructions Below:](#setting-up-soundtouch-hybrid)
-
-
-
 # <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.4
 
-**A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch 10, 20, 30, Wave IV Speakers and Wireless Link Adapter. Physical Presets Included!**
+**A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch 10, 20, & 30 Speakers and Wireless Link. Physical Presets Included!**
 
-<img src="public/images/bose_icon.png" width="20">  The Bose shut down of their SoundTouch Cloud Service (May 2026) degraded the Bose SoundTouch intelligent, multi-room audio speakers into "dumb" receivers dependent on a phone's active connection. This represents a **significant loss of functionality** for the SoundTouch 10, 20, 30, Wave IV Speakers and Wireless Link Adapter. 
+<img src="public/images/bose_icon.png" width="20">  The Bose shut down of their SoundTouch Cloud Service (May 2026) degraded the Bose SoundTouch intelligent, multi-room audio speakers into "dumb" receivers dependent on a phone's active connection. This represents a **significant loss of functionality** for the SoundTouch 10, 20, and 30 Speakers and Wireless Link Adapter. 
 
 <img src="public/images/hybrid_icon.png" width="20">  **This solution provides a self-hosted "Private Cloud" to emulate and replace the Bose Cloud Service**. It runs locally on your network (NAS, PC, etc.) and intercepts and actively manages the complex server handshakes required to keep the SoundTouch Speakers authenticated and functional, providing the **same phone-free audio streaming capabilities** as the original SoundTouch Application and Speakers. 
 
@@ -44,9 +40,7 @@
 
 ### ✨ Application Key Features:
 * **100% Local Control:** Your data and control logic stay on your LAN. No reliance on external Bose servers.
-* **Complete App Replacement:** A single, responsive web interface for **Desktop** and **Mobile** that handles both streaming and speaker maintenance, completely eliminating the need for the legacy SoundTouch app or provider-specific streaming apps. Includes support for initial speaker setup, factory resets, WiFi provisioning,
-
-* ### ***And Automatic Non-USB Injection of the Bose SoundTouch Hybrid Bose Cloud Emulation***
+* **Complete App Replacement:** A single, responsive web interface for **Desktop** and **Mobile** that handles both streaming and speaker maintenance, completely eliminating the need for the legacy SoundTouch app or provider-specific streaming apps. Includes support for initial speaker setup, factory resets, WiFi provisioning, and the one-time automated injection of a speaker's internal cloud emulation configuration (`OverrideSdkPrivateCfg.xml`).
 
 * **Hardware Intelligence Preserved:** 
   * ✅ **Local Bose Cloud Emulation:** Local replacement emulating  the required Bose Cloud handshakes to keeping the speakers authenticated and fully functional.
@@ -112,7 +106,7 @@
 
 Review **[SoundTouch Hybrid 2026 Technical Documentation](https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/blob/main/public/docs/SoundTouchHybridDocumentation.pdf)** for detailed system architecture, technical development findings and solutions, and visual setup screenshots.
 
-## Installations via Docker Compose 
+## Installations via Docker Compose
 
 ***You must verify your SoundTouch speakers and streaming providers are fully working inside of Music Assistant prior to using the SoundTouch Hybrid Application.***
 
@@ -136,36 +130,29 @@ Install Music Assistant (MASS):  ***version 2.8.5 or later is required***
 
 ### <img src="public/images/hybrid_icon.png" width="18"> Setting up SoundTouch Hybrid
 
-⚠️ **Important Upgrade Note For Existing V1 & V2 SoundTouch Hybrid Installations:** V3.4 has significant architectural changes including transitioning to streamlined pre-built Docker image. Because of fundamental changes to the system and file structures, you cannot simply update your existing container. This requires a complete fresh install.
+⚠️ **Important Upgrade Note For Existing V1 & V2 SoundTouch Hybrid Installations:** V3 has significant architectural changes including transitioning to streamlined pre-built Docker image. Because of fundamental changes to the system and file structures, you cannot simply update your existing container. This requires a complete fresh install.
 
 Before proceeding with the instructions below, please do the following:
-
    * **Backup Your Data:** Save a copy of your existing `.env`, `library.json` and `speakers.json` files. You need these to reference your specific IPs/ports/etc configs.
-
-   * **NOTE: It is ok to place the your `.env`, `library.json` and `speakers.json`into the same directory as the yml file. V3.4 is smart enough not to wipe them out and will prompt if your '.env' is outdated**
-
    * **Destroy the Old System:** Completely stop and remove your old SoundTouch Hybrid container, and delete your old project folder.
- 
-   * **Do Not Reuse These Old Files:** The internal structure of the `.env` and `.yml` files have changed. When you deploy V3.4, the system will generate new configuration templates. Copy your IP's, credentials etc from your old backup files into the new files. Do not overwrite the new `.env` file with your old one. You can reuse your `speakers.json` and `library.json` files so after the fresh install just overlay the new same named files in your container directory
+   * **Do Not Reuse These Old Files:** The internal structure of the `.env` and `.yml` files have changed. When you deploy V3, the system will generate new configuration templates. Copy your IP's, credentials etc from your old backup files into the new files. Do not overwrite the new `.env` file with your old one. You can reuse your `speakers.json` and `library.json` files so after the fresh install just overlay the new same named files in you container directory. A `provider` key was added to  `library.json` so until an existing favorite/presets is resaved the `provider` value will not exist for object. This only impacts the new optional provider specific selection filter within the new library search function.
 
 #### <img src="public/images/hybrid_icon.png" width="18"> **Install Bose SoundTouch Hybrid 2026**
 1. **Create Directory & Download the Compose File:** Create a new folder on your local NAS or server named `bose-soundtouch-hybrid`. Download only the `bose-soundtouch-hybrid.yml` file from this repository and place it inside your new  `bose-soundtouch-hybrid` folder.
 
-2. **Configure Docker Volume Path:** Open `bose-soundtouch-hybrid.yml` and locate the `volumes:` section. Read the instructions and make any required changes to the volumes section depending on your YML deploy method.
+2. **Configure Docker Volume Path:** Open `bose-soundtouch-hybrid.yml` and locate the `volumes:` section. Change everything to the left side of /bose-soundtouch-hybrid  (e.g. `/share/Container`/bose-soundtouch-hybrid) to match the actual absolute path of your specific NAS storage structure of where you created the `bose-soundtouch-hybrid`folder.
 
 3. **Initial Deploy / Template Generation:** Launch the container to generate your configuration files.
    * NAS/GUI: Import the `bose-soundtouch-hybrid.yml` file into your container manager (like Container Station or Portainer) and deploy.
    * Command Line: Navigate to your folder and run: `docker compose -f bose-soundtouch-hybrid.yml up -d`
    * Note: The container will download the image, create the necessary configuration files in your folder, and then pause waiting for you to fill them out.
    * <img width="686" height="191" alt="image" src="https://github.com/user-attachments/assets/f1727099-a2f4-4b94-b884-3a25cb13900c" />
-   * Note: The image below shows the end state of a where you config files and logs directory wil be 
-   * <img width="1142" height="316" alt="image" src="https://github.com/user-attachments/assets/0bee4dbf-bece-4a52-a801-10f3e366756d" />
 
 
   
 4. **Configure Your Environment & Speakers:** Navigate to your `bose-soundtouch-hybrid` folder on your server. You will see the automatically generated `.env` and `speakers.json` files.
-   * Edit `.env`: Update it with your local server IP addresses, Music Assistant (MASS) credentials, and port configurations. Replace all placeholders.(Note: Your actual streaming provider passwords are managed inside Music Assistant, not here).
-   * Edit `speakers.json`: Update it with your speakers' names and their static IP addresses. Replace all placeholders.
+   * Edit `.env`: Update it with your local server IP addresses, Music Assistant (MASS) credentials, and port configurations. Replace all `xx` placeholders.(Note: Your actual streaming provider passwords are managed inside Music Assistant, not here).
+   * Edit `speakers.json`: Update it with your speakers' names and their static IP addresses. Replace all `xx` placeholders.
    * See Page 15 in the [SoundTouch Hybrid Documentation](https://cdn.jsdelivr.net/gh/TJGigs/Bose-SoundTouch-Hybrid-2026@main/public/docs/SoundTouchHybridDocumentation.pdf#page=15) for examples.
 
 5. Restart Appliocation: Once the files are configured restart the container to launch Bose SoundTouch Hybrid 2026
@@ -191,3 +178,5 @@ Before proceeding with the instructions below, please do the following:
 * **Official Shutdown Discussion:** The original community thread tracking Bose's EOL announcement and API release [Bose EOL Reddit](https://www.reddit.com/r/bose/comments/1o2cnhw/bose_ending_cloud_support_for_soundtouch/).
 * **The Reddit "Alternative App" Megathread:** Ongoing conversation about replacing the Bose App. [Bose Alternatives Reddit](https://www.reddit.com/r/bose/comments/1o8my2n/soundtouch_app_alternatives/).
 * **The Bose Wiki (App Alternatives):** A community-maintained list of current workarounds and projects. [Bose Alternatives Wiki](https://bose.fandom.com/wiki/SoundTouch_app_alternatives).
+* **[GitHub Soundcork-repo](https://github.com/deborahgu/soundcork).**
+* **[GitHub Ueberboese-repo](https://github.com/julius-d/ueberboese-api).**

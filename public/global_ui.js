@@ -205,4 +205,39 @@ window.triggerGlobalAllOff = async function() {
     } finally {
         btns.forEach(b => b.style.opacity = '1');
     }
-}; 
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // Only execute this fetch if we are actually on the tools.html page
+    if (!document.getElementById('pref_autoResume')) return; 
+    
+    try {
+        const res = await fetch('/api/admin/settings');
+        const prefs = await res.json();
+        document.getElementById('pref_autoResume').checked = prefs.autoResumePreset;
+        document.getElementById('pref_autoRestart').checked = prefs.autoRestartMass;
+        document.getElementById('pref_autoSync').checked = prefs.autoSyncVolume;
+        document.getElementById('pref_autoSort').checked = prefs.autoSortSpeakers;
+    } catch(e) { 
+        console.error("[UI] Failed to load preferences", e); 
+    }
+});
+
+async function savePreferences() {
+    const payload = {
+        autoResumePreset: document.getElementById('pref_autoResume').checked,
+        autoRestartMass: document.getElementById('pref_autoRestart').checked,
+        autoSyncVolume: document.getElementById('pref_autoSync').checked,
+        autoSortSpeakers: document.getElementById('pref_autoSort').checked
+    };
+    try {
+        const res = await fetch('/api/admin/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) alert("? Preferences saved successfully.");
+    } catch(e) { 
+        alert("? Failed to save preferences."); 
+    }
+}

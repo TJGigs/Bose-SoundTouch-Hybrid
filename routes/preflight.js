@@ -7,6 +7,44 @@ const net = require('net');
 // ⚠️ WARNING: SET THIS TO false BEFORE GITHUB RELEASE!
 const FORCE_TEST_JANITOR = false;
 
+
+async function auditSpeakerClock(ip, name) {
+    try {
+        // 1. Calculate the exact local timezone offset right now
+        const now = new Date();
+        const localUnixTime = Math.floor(now.getTime() / 1000);
+        const offsetMinutes = -now.getTimezoneOffset(); // e.g., +120 for ECST
+        const offsetSeconds = offsetMinutes * 60;
+        const utcUnixTime = localUnixTime - offsetSeconds;
+
+        // 2. Ask the speaker what offset it is currently using
+        const checkRes = await axios.get(`http://${ip}:8090/clockTime`, { timeout: 1500 });
+        const parser = new xml2js.Parser({ explicitArray: false });
+        const data = await parser.parseStringPromise(checkRes.data);
+        
+        const currentOffset = parseInt(data.clockTime?.offset || "0");
+
+        // 3. Only push an update if the speaker is wrong
+        if (currentOffset !== offsetSeconds) {
+            console.log(`[Pre-Flight] 🕒 Adjusting timezone offset on ${name} (Daylight/Timezone shift detected)...`);
+            const timeXml = `
+                <clockTime>
+                    <state>SYNC_VALID</state>
+                    <utcTime>${utcUnixTime}</utcTime>
+                    <localTime>${localUnixTime}</localTime>
+                    <offset>${offsetSeconds}</offset>
+                </clockTime>
+            `.trim();
+            await axios.post(`http://${ip}:8090/clockTime`, timeXml, {
+                headers: { 'Content-Type': 'application/xml' },
+                timeout: 2000
+            });
+        }
+    } catch (e) {
+        // Fail silently so it doesn't interrupt the boot sequence
+    }
+}
+
 // 1. THE NATIVE INJECTOR (Universal Timing Sequence)
 function injectPort17000Commands(ip, commands) {
     return new Promise((resolve) => {
@@ -249,6 +287,12 @@ async function runSetup(forceMode = false, targetIp = 'all') {
 			// FIX 2: Invalid list forces reconfiguration (Checks BOTH IP and Port)
             const isUrlConfigured = currentMargeUrl.includes(`${APP_IP}:${APP_PORT}`);
             const hasMargeId = currentMargeId !== "" && currentMargeId !== "0000000" && currentMargeId !== "UNKNOWN_MAC";
+			
+			// ==========================================================
+            // --- SMART CLOCK AUDIT ---
+            // checks every speaker
+            // ==========================================================
+            await auditSpeakerClock(speaker.ip, speaker.name);
 
             // --- FORCE INJECTION LOGIC ---
             const naturallyNeedsSetup = !isUrlConfigured || !hasMargeId;

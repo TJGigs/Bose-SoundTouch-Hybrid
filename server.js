@@ -1,7 +1,7 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.4.2";
+const CURRENT_VERSION = "v3.4.3";
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 
 const express = require('express');
@@ -45,7 +45,8 @@ console.log = function() { captureLog('INFO', arguments); originalLog.apply(cons
 console.error = function() { captureLog('ERROR', arguments); originalError.apply(console, arguments); };
 
 console.log("=======================================================================");
-console.log("====      BOSE SOUNDTOUCH HYBRID 2026: STARTUP INITIALIZATION");
+console.log("====                STARTUP AND INITIALIZATION");
+console.log("====           BOSE SOUNDTOUCH HYBRID 2026: " + CURRENT_VERSION.toUpperCase());
 console.log("=======================================================================");
 
 // ============================================================================
@@ -216,7 +217,7 @@ if (!isReady) {
     app.get('/api/check_update', (req, res) => res.json(UPDATE_CACHED_DATA));
     app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'control.html')));
 
-    // ============================================================================
+// ============================================================================
     // PHASE 7: HARDWARE BOOT SEQUENCE
     // ============================================================================
     async function checkGitHubForUpdates() {
@@ -224,63 +225,43 @@ if (!isReady) {
             const githubRes = await axios.get('https://api.github.com/repos/TJGigs/Bose-SoundTouch-Hybrid-2026/releases/latest', { headers: { 'User-Agent': 'Bose-Hybrid-App' }});
             const latestVersion = githubRes.data.tag_name;
             if (latestVersion !== CURRENT_VERSION) {
-                console.log(`\n[Boot] 🚀  SOUNDTOUCH HYBRID UPDATE AVAILABLE! Current: ${CURRENT_VERSION} | Latest: ${latestVersion}`);
+                console.log(`\n[Boot] 🚀 SOUNDTOUCH HYBRID UPDATE AVAILABLE! Current: ${CURRENT_VERSION} | Latest: ${latestVersion}\n`);
                 UPDATE_CACHED_DATA = { updateAvailable: true, current: CURRENT_VERSION, latest: latestVersion, url: githubRes.data.html_url };
             } else {
-                console.log(`[Boot] ✓ App is up to date (${CURRENT_VERSION})`);
+                console.log(`\n[Boot] ✓ App is up to date (${CURRENT_VERSION})\n`);
             }
         } catch (e) {
-            console.log(`[Boot] ⚠️ Could not check for updates on GitHub.`);
+            console.log(`\n[Boot] ⚠️ Could not check for updates on GitHub.\n`);
         }
     }
 
     async function systemBoot() {
-        console.log("[Boot] 🧹 Triggering Music Assistant restart to clear orphaned DLNA connections...");
-        try {
-            await dockerAction('restart');
-            console.log("[Boot] ⏳ Waiting 15s for Music Assistant to initialize...");
-            await new Promise(r => setTimeout(r, 15000));
-        } catch (e) {
-            console.error("[Boot] ❌ Docker Restart Failed: Check socket permissions.");
-        }
-
-        let massHealth = await getMassHealth();
-
-        if (massHealth.isOnline) {
-            console.log(`[Boot] ✅ Music Assistant restarted successfully (v${massHealth.version}).`);
-            const minReq = [2, 8, 5];
-            const current = massHealth.version.split('.').map(Number);
-            const isOutdated = current.some((num, i) => num < minReq[i]);
-            if (isOutdated) {
-                console.log(`[Boot] ⚠️  NOTICE: Music Assistant 2.8.5 or later is required.`);
-            }
-        } else {
-            console.log("[Boot] ⚠️ Music Assistant failed to report online after restart.");
-        }
-
-        await checkGitHubForUpdates();
-
         console.log("\n=======================================================================");
-        console.log(`====      BOSE SOUNDTOUCH HYBRID 2026:  ${CURRENT_VERSION.toUpperCase()}`);
-        console.log(`====                  MUSIC ASSISTANT:  v${massHealth.version}`);
-        console.log("=======================================================================");
-
+        console.log(`[Boot]          🔍  Checking configured speakers...`);
+        console.log("\========================================================================");
+        
+        const ALIVE_SPEAKERS = [];
         const parser = new xml2js.Parser({ explicitArray: false });
+        
+        // STEP 1: The Hardware Roll Call (Ping Check)
         for (const s of SPEAKERS) {
             try {
                 const res = await axios.get(`http://${s.ip}:8090/info`, { timeout: 1500 });
                 const data = await parser.parseStringPromise(res.data);
                 const type = data.info.type || data.info.$.type || "Unknown";
                 console.log(` [OK] ${s.name.padEnd(20)} | Type: ${type.padEnd(15)} | IP: ${s.ip}`);
+                ALIVE_SPEAKERS.push(s); 
             } catch (e) {
-                console.log(` [!!] ${s.name.padEnd(20)} | IP: ${s.ip.padEnd(15)} | OFFLINE`);
+                console.log(` [!!] ${s.name.padEnd(20)} | IP: ${s.ip.padEnd(15)} | OFFLINE (Skipping)`);
             }
         }
-        console.log("=======================================================================");
+        console.log("=========================================================================");
 
-		console.log(`\n[Boot] Handing over to Pre-Flight Speaker Configuration...`); 
-		console.log(` `);       		
-        // --- CHECK FOR FORCE INJECTION FLAG ---
+        // STEP 2: Force Injection Check & Pre-Flight Execution
+        console.log(`\n-----------------------------------------------------------------------`);
+        console.log(`[Boot] Handing over to Pre-Flight Speaker Configuration...`); 
+        console.log(`-------------------------------------------------------------------------`);       		
+        
         let forceMode = false;
         let targetIp = 'all';
         const flagPath = path.join(USER_ROOT, 'force_inject.json');
@@ -290,22 +271,25 @@ if (!isReady) {
                 const flagData = JSON.parse(fs.readFileSync(flagPath, 'utf8'));
                 forceMode = flagData.forceMode || false;
                 targetIp = flagData.targetIp || 'all';
+                if (flagData.debugMode === true) {
+                    global.DEBUG_MODE = true;
+                    console.log(`[Boot] 🐛 Verbose Debug Mode RESTORED from Force Inject flag.`);
+                }
                 console.log(`[Boot] 🚨 FORCE INJECTION FLAG DETECTED! Target: ${targetIp}`);
-                
-                // Immediately delete the flag so it only executes on this specific boot
                 fs.unlinkSync(flagPath);
             } catch (e) {
                 console.error("[Boot] ⚠️ Error reading force_inject.json flag file.", e);
             }
         }
 
-        // Run setup using the variables (they default to false/'all' if no flag exists)
         const preflightData = await preflight.runSetup(forceMode, targetIp);
+        if (!preflightData.success) console.log(`[Boot] ⚠️ Pre-Flight encountered a soft error. Continuing boot...\n`);
         
+        // STEP 3: The Great Wait (Reboot Polling)
         if (preflightData.rebootedIps && preflightData.rebootedIps.length > 0) {
-			console.log(`\n=======================================================================`);
+            console.log(`\n=======================================================================`);
             console.log(`⏳ SPEAKER REBOOT SEQUENCE INITIATED`);
-            console.log(`=======================================================================`);
+            console.log(`=========================================================================\n`);
             console.log(`[Boot] Waiting for ${preflightData.rebootedIps.length} speaker(s) to finish rebooting...`);
             console.log(`[Boot] Bose SoundTouch speakers are historically very slow.`);
             console.log(`[Boot] Please wait ~90 seconds for shutdown and network reconnection.\n`);
@@ -313,9 +297,8 @@ if (!isReady) {
             console.log(`[Boot] ⏳ Phase 1/2: Allowing 35 seconds for speakers to drop offline...`);
             await new Promise(r => setTimeout(r, 35000));
             
-            console.log(`[Boot] ⏳ Phase 2/2: Polling speakers until network reconnects...`);
+            console.log(`\n[Boot] ⏳ Phase 2/2: Polling speakers until network reconnects...`);
 
-            // 1. Wait for all rebooted speakers to finish sequentially
             for (const ip of preflightData.rebootedIps) {
                 let online = false, attempts = 0;
                 let finalInfo = null; 
@@ -327,6 +310,11 @@ if (!isReady) {
                         online = true;
                         finalInfo = res.data;
                         console.log(` ✅ Online!`);
+                        
+                        if (!ALIVE_SPEAKERS.find(s => s.ip === ip)) {
+                            const originalSpeaker = SPEAKERS.find(s => s.ip === ip);
+                            if (originalSpeaker) ALIVE_SPEAKERS.push(originalSpeaker);
+                        }
                     } catch (e) {
                         attempts++;
                         process.stdout.write('.'); 
@@ -337,15 +325,12 @@ if (!isReady) {
                 if (!online) {
                     console.log(` ⚠️ Timeout. Moving on.`);
                 } else if (finalInfo) {
-                    // 2. DETECTION BY DEDUCTION (Legacy USB Check)
                     try {
-                        const parser = new xml2js.Parser({ explicitArray: false });
                         const data = await parser.parseStringPromise(finalInfo);
                         const info = data.info || {};
                         const currentMargeUrl = info.margeURL || info.margeServerUrl || "";
 
-
-						if (!currentMargeUrl.includes(`${process.env.APP_IP}:${process.env.APP_PORT}`)) { 
+                        if (!currentMargeUrl.includes(`${process.env.APP_IP}:${process.env.APP_PORT}`)) { 
                             console.log(`\n=======================================================================`);
                             console.log(`🚨 LEGACY V1/V2 CONFIGURATION DETECTED ON ${ip}!`);
                             console.log(`   The speaker is refusing the V3 update because an old USB hack file`);
@@ -361,42 +346,71 @@ if (!isReady) {
                             console.log(`   reboot the speaker, and complete the V3 upgrade automatically!`);
                             console.log(`=======================================================================\n`);
                         }
-                    } catch (err) {
-                        // ignore parse errors
-                    }
+                    } catch (err) {}
                 }
             }
-			
-			// 3. --- BATCH PROCESSING & MASS RECOVERY LOGIC ---
-            // Triggered natively exactly once after ALL hardware is back online
             console.log(`\n=======================================================================`);
             console.log(`✅ ALL SPEAKER REBOOTS COMPLETE`);
             console.log(`=======================================================================\n`);
-            
-            console.log(`[Boot] Restarting Music Assistant to recover DLNA streams...`);	
-            try {
-                await dockerAction('restart');
-                console.log(`[Boot] ⏳ Waiting 15s for MASS to re-initialize...`);
-                await new Promise(r => setTimeout(r, 15000));
-                
-                const health = await getMassHealth();
-                if (health.isOnline) {
-                    console.log(`[Boot] ✅ MASS connection restored (v${health.version}).`);
-                } else {
-                    console.log(`[Boot] ⚠️ MASS did not report online.`);
-                }
-            } catch (err) {
-                console.error(`[Boot] ❌ Failed to restart MASS: ${err.message}`);
-            }
         }
 
-        if (!preflightData.success) console.log(`[Boot] ⚠️ Pre-Flight encountered a soft error. Continuing boot...`);
-
-        console.log("-----------------------------------------------------------------------");
+        // STEP 4: Establish Territory (WebSockets)
+        console.log(`\n-----------------------------------------------------------------------`);
         console.log(`[Boot] Connecting Real-time WebSockets...`);
-        SPEAKERS.forEach(s => deviceState.initDevice(s));
+        console.log(`-------------------------------------------------------------------------`);
+        ALIVE_SPEAKERS.forEach(s => deviceState.initDevice(s));
         
-        console.log("-----------------------------------------------------------------------");
+// STEP 5: The Grand Introduction (Restart MASS)
+        console.log(`\n-----------------------------------------------------------------------`);
+        console.log(`[Boot] 🧹 Triggering Music Assistant restart for a clean network state...`);
+        console.log(`-----------------------------------------------------------------------\n`);
+        try {
+            await dockerAction('restart');
+            console.log(`\n[Boot] ⏳ Waiting for Music Assistant Docker container to boot...`);
+        } catch (e) {
+            console.error(`[Boot] ❌ Docker Restart Failed: Check socket permissions.`);
+        }
+
+        let massHealth = { isOnline: false, version: "Unknown" };
+        let healthAttempts = 0;
+        
+        // Loop every 2 seconds until the Health Check passes (Max 30 seconds)
+        while (!massHealth.isOnline && healthAttempts < 15) {
+            await new Promise(r => setTimeout(r, 2000)); 
+            massHealth = await getMassHealth();
+            if (!massHealth.isOnline) {
+                process.stdout.write('.'); // Print dots while waiting
+                healthAttempts++;
+            }
+        }
+        if (healthAttempts > 0) console.log(); // Clear the line after dots finish
+
+        if (massHealth.isOnline) {
+            console.log(`[Boot] ✅ Music Assistant restarted successfully (v${massHealth.version}).`);
+            const minReq = [2, 8, 5];
+            const current = massHealth.version.split('.').map(Number);
+            const isOutdated = current.some((num, i) => num < minReq[i]);
+            if (isOutdated) {
+                console.log(`[Boot] ⚠️  NOTICE: Music Assistant 2.8.5 or later is required.\n`);
+            }
+
+            // STEP 6: Smart Polling & Configuration Injection        
+            const { enforcePlayerConfigs } = require('./routes/mass_utils');
+            await enforcePlayerConfigs(ALIVE_SPEAKERS);
+            console.log(`-------------------------------------------------------------------------`);            
+
+        } else {
+            console.log(`\n[Boot] ⚠️ Music Assistant failed to report online after restart.\n`);
+        }
+
+        // STEP 7: Check Updates (Standalone Space)
+        await checkGitHubForUpdates();
+
+        // STEP 8: The Final Banner
+        console.log("=========================================================================");
+        console.log(`====      BOSE SOUNDTOUCH HYBRID 2026:  ${CURRENT_VERSION.toUpperCase()}`);
+        console.log(`====                  MUSIC ASSISTANT:  v${massHealth.version}`);
+        console.log("=======================================================================\n");
         console.log(`➡️  Web UI accessible at: http://${process.env.APP_IP}:${PORT}/control.html\n`);
     }
 

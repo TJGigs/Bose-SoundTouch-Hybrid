@@ -47,6 +47,29 @@
                 <button class="primary" onclick="saveSearchOrder()" style="width: 100%; margin-top: 15px; background: #3498db; color: white;">💾 Save Order</button>
             </div>
         </div>
+		
+
+<div class="card" style="margin-bottom: 25px; border-left: 4px solid var(--accent); break-inside: avoid;">
+    <h3>⚙️ App Preferences</h3>
+    <div class="pref-grid">
+        <label class="pref-label">
+            <input type="checkbox" id="pref_autoResume" class="pref-checkbox"> Auto-Resume Presets
+        </label>
+        <label class="pref-label">
+            <input type="checkbox" id="pref_autoRestart" class="pref-checkbox"> Auto-Restart MASS
+        </label>
+        <label class="pref-label">
+            <input type="checkbox" id="pref_autoSync" class="pref-checkbox"> Auto-Sync Slave Volume
+        </label>
+        <label class="pref-label">
+            <input type="checkbox" id="pref_autoSort" class="pref-checkbox"> Auto-Sort Active Speakers
+        </label>
+    </div>
+    <div style="text-align: right; margin-top: 15px;">
+        <button class="btn" style="background: var(--accent); color: #000; font-weight: bold;" onclick="savePreferences()">Save Preferences</button>
+    </div>
+</div>
+
 		<div class="card" style="margin-bottom: 25px; border-left: 3px solid #9b59b6; height:auto;">
             <h3>⚙️ System Services</h3>
             <div class="sub-head">Manage container instances and hardware injections.</div>
@@ -602,4 +625,4 @@ pause`;
   loadTools();
 </script>
 </body>
-</html> 
+</html>

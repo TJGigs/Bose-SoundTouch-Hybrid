@@ -952,4 +952,57 @@ input:disabled + label {
         margin-left: 8px !important; 
         margin-top: 4px; 
     }
-} 
+}
+
+
+
+.pref-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.pref-label {
+    flex: 1 1 calc(50% - 15px); /* Safely creates 2 columns */
+    min-width: 200px;           /* Auto-wraps to 1 column on mobile */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    user-select: none;
+}
+
+.pref-checkbox {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    width: 20px !important;       /* Scaled down slightly to match the 0.9em text */
+    height: 20px !important;
+    min-width: 20px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0 !important;
+    display: inline-block !important;
+}
+
+.pref-checkbox:checked {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+.pref-checkbox:checked::after {
+    content: '✔';
+    position: absolute;
+    color: #000;
+    font-size: 13px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}

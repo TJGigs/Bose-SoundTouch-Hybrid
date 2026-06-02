@@ -72,7 +72,7 @@ async function handlePowerLogic(ip, currentState) {
         // 1. If it's a Master, power down the Slaves
         if (currentState.zone && currentState.zone.master === currentState.mac && currentState.zone.member) {
             const members = Array.isArray(currentState.zone.member) ? currentState.zone.member : [currentState.zone.member];
-            console.log(`[Control] ⏻ Powering Down Group Slaves (${members.length})...`);
+            console.log(`\n[Control] ⏻ Powering Down Group Slaves (${members.length})...`);
             const xml = `<key state="press" sender="Gabbo">POWER</key>`;
             const xmlRel = `<key state="release" sender="Gabbo">POWER</key>`;
 
@@ -87,15 +87,15 @@ async function handlePowerLogic(ip, currentState) {
         
 		// 2. The 1-2 Punch: Stop active stream, then clear the queue to prevent DLNA ghost-resumes
         if (currentState.massIsActiveDriver) {
-            mass.stop(ip, "Manual Power OFF");
-            mass.clearQueue(ip);
+            await mass.stop(ip, "Manual Power OFF");
+            await mass.clearQueue(ip);
         }
         
         // 3. Clear the green preset highlight
         mass.setPresetMemory(ip, 0);
     }
 
-    console.log(`[Control] ⏻ Power Toggle (Current: ${isStandby ? 'Off' : 'On'})`);
+    console.log(`\n[Control] ⏻ Power Toggle (Current: ${isStandby ? 'Off' : 'On'})`);
     const xml = `<key state="press" sender="Gabbo">POWER</key>`;
     const xmlRel = `<key state="release" sender="Gabbo">POWER</key>`;
 
@@ -386,4 +386,4 @@ router.post('/zone_volume', async(req, res) => {
 router.get('/health', (req, res) => res.json({ healthy: mass.getHealth() }));
 router.post('/health/reset', (req, res) => { mass.resetHealth(); res.json({ success: true }); });
 
-module.exports = router; 
+module.exports = router;

@@ -8,6 +8,58 @@ const mass = require('./mass');
 const fs = require('fs');      
 const path = require('path');  
 
+
+// --- UNIFIED SMART COMMAND ROUTER ---
+// Forwards commands directly to controller.js to inherit Master/Slave and Queue cleanup logic
+async function routeToSmartController(ip, key) {
+    const LOCAL_PORT = process.env.APP_PORT;
+    console.log(`[Admin] 🔀 Routing ${key} command for ${ip} through the Smart Controller...`);
+    await axios.post(`http://127.0.0.1:${LOCAL_PORT}/api/key`, { ip, key });
+}
+
+// admin.js (Updated settings logic)
+const SETTINGS_FILE = path.join(process.cwd(), 'config', 'settings.json');
+
+function getSettings() {
+    try {
+        if (fs.existsSync(SETTINGS_FILE)) {
+            return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+        }
+    } catch (e) { 
+        console.error("[Admin] Error reading settings.json", e); 
+    }
+    
+    return { 
+        autoResumePreset: false, 
+        autoRestartMass: false, 
+        autoSyncVolume: false, 
+        autoSortSpeakers: true 
+    };
+}
+
+router.get('/admin/settings', (req, res) => res.json(getSettings()));
+
+router.post('/admin/settings', (req, res) => {
+    try {
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(req.body, null, 4));
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: "Failed to save settings.json" });
+    }
+});
+router.get('/admin/settings', (req, res) => res.json(getSettings()));
+
+router.post('/admin/settings', (req, res) => {
+    try {
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(req.body, null, 4));
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: "Failed to save settings.json" });
+    }
+});
+
+
+
 router.get('/admin/device_status', async (req, res) => {
     const { ip } = req.query;
     try {
@@ -82,7 +134,23 @@ router.get('/admin/device_status', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Failed to fetch state" }); }
 });
 
-router.post('/admin/key', async (req, res) => { try { await axios.post(`http://${req.body.ip}:8090/key`, `<key state="press" sender="Gabbo">${req.body.key}</key>`, BOSE_HEADERS); await axios.post(`http://${req.body.ip}:8090/key`, `<key state="release" sender="Gabbo">${req.body.key}</key>`, BOSE_HEADERS); res.send({success:true}); } catch(e) { res.status(500).send(e.message); } });
+// --- UNIFIED SMART COMMAND ROUTER ---
+// Forwards commands directly to controller.js to inherit Master/Slave and Queue cleanup logic
+async function routeToSmartController(ip, key) {
+    const LOCAL_PORT = process.env.APP_PORT;
+    await axios.post(`http://127.0.0.1:${LOCAL_PORT}/api/key`, { ip, key });
+}
+
+// --- UNIFIED SMART POWER LOGIC ---
+router.post('/admin/key', async (req, res) => { 
+    try { 
+        await routeToSmartController(req.body.ip, req.body.key);
+        res.send({success:true}); 
+    } catch(e) { 
+        console.error(`[Admin] Failed to route key ${req.body.key} to smart controller:`, e.message);
+        res.status(500).send(e.message); 
+    } 
+});
 
 // RENAME ROUTE WITH LOGGING
 router.post('/admin/name', async (req, res) => { 
@@ -207,8 +275,25 @@ router.post('/admin/toggle_source', async (req, res) => {
 });
 
 // --- TELNET REBOOT ROUTE (PORT 17000) ---
-router.post('/admin/reboot_speaker', (req, res) => {
+router.post('/admin/reboot_speaker', async (req, res) => { // <-- Added async
     const { ip } = req.body;
+    
+    try {
+        // 1. SMART SHUTDOWN: Check if it's awake before rebooting
+        const statusRes = await axios.get(`http://${ip}:8090/now_playing`, { timeout: 2000 });
+        
+        if (!statusRes.data.includes('source="STANDBY"')) {
+            console.log(`[Admin] 💤 Clean shutdown: Routing POWER command for ${ip} before Telnet reboot...`);
+            await routeToSmartController(ip, 'POWER');
+            
+            // Give controller.js and the hardware 1.5 seconds to finish clearing queues
+            await new Promise(r => setTimeout(r, 1500));
+        }
+    } catch (e) {
+        console.log(`[Admin] ⚠️ Could not verify power state for ${ip} before reboot. Proceeding anyway.`);
+    }
+
+    // 2. EXECUTE THE HARDWARE REBOOT
     console.log(`[Admin] Sending Telnet 'sys reboot' to ${ip} on port 17000...`);
     
     const client = new net.Socket();
@@ -221,6 +306,7 @@ router.post('/admin/reboot_speaker', (req, res) => {
 
     res.send({ success: true });
 });
+
 
 // --- UNIFIED WI-FI PROVISIONING ---
 router.post('/admin/set_wifi', async (req, res) => {
@@ -317,9 +403,59 @@ router.post('/admin/set_wifi', async (req, res) => {
     }
 });
 
+
+// --- THE CLEAN SLATE PROTOCOL (SMART POWER OFF ALL) ---
+async function powerOffAllSpeakers() {
+    const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
+    if (!fs.existsSync(speakersPath)) return;
+    
+    const SPEAKERS = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
+    console.log(`\n[Admin] 🧹 Putting all active speakers to sleep for a clean restart...`);
+
+    const sleepTasks = SPEAKERS.map(async (speaker) => {
+        try {
+            const statusRes = await axios.get(`http://${speaker.ip}:8090/now_playing`, { timeout: 2000 });
+            if (!statusRes.data.includes('source="STANDBY"')) {
+                console.log(`   └─ 💤 Initiating smart power-down for ${speaker.name}...`);
+                // Use our new shared helper!
+                await routeToSmartController(speaker.ip, 'POWER');
+            }
+        } catch (e) {
+            console.error(`   └─ ⚠️ Could not reach ${speaker.name} to power it down.`);
+        }
+    });
+
+    await Promise.allSettled(sleepTasks);
+    // Give controller.js 1.5 seconds to finish clearing queues before we kill the server
+    await new Promise(r => setTimeout(r, 1500)); 
+}
+
+
 // --- RESTART SOUNDTOUCH HYBRID ---
-router.post('/admin/restart_hybrid', (req, res) => {
+router.post('/admin/restart_hybrid', async (req, res) => {
     console.log(`\n[Admin] 🔄 SoundTouch Hybrid App restart requested via Web UI (Standard).`);
+    
+    // --- PERSIST VERBOSE DEBUG STATE ---
+    if (global.DEBUG_MODE === true) {
+        try {
+            // Write the flag file with forceMode FALSE so we skip the USB wipe, 
+            // but pass debugMode TRUE so the bootloader restores our logs!
+            const flagPath = path.join(process.cwd(), 'config', 'force_inject.json');
+            fs.writeFileSync(flagPath, JSON.stringify({ 
+                forceMode: false, 
+                targetIp: 'all', 
+                debugMode: true 
+            }));
+            console.log(`[Admin] 💾 Verbose Debug state saved to disk for standard reboot.`);
+        } catch (err) {
+            console.error(`[Admin] ⚠️ Could not save debug state for reboot:`, err.message);
+        }
+    }
+
+	
+	// 🔥 EXECUTE UNIFIED SMART SHUTDOWN
+    await powerOffAllSpeakers();
+	
     res.send({ success: true });
     
     // Wait 1 second to ensure the UI gets the 'success' response, then kill the process.
@@ -341,7 +477,7 @@ router.get('/admin/debug_state', (req, res) => {
     res.json({ debug: global.DEBUG_MODE === true });
 });
 // --- FORCE NVRAM INJECTION ---
-router.post('/admin/force_injection', (req, res) => {
+router.post('/admin/force_injection', async (req, res) => {
     const targetIp = req.body.target || 'all';
     
     console.log(`\n=======================================================================`);
@@ -349,10 +485,17 @@ router.post('/admin/force_injection', (req, res) => {
     console.log(`🎯 Target: ${targetIp === 'all' ? 'ALL SPEAKERS' : targetIp}`);
     console.log(`=======================================================================`);
     
-    // 1. Write a temporary flag file to the mapped config folder
+	// Write a temporary flag file including the debug state
     const flagPath = path.join(process.cwd(), 'config', 'force_inject.json');
-    fs.writeFileSync(flagPath, JSON.stringify({ forceMode: true, targetIp: targetIp }));
-
+    fs.writeFileSync(flagPath, JSON.stringify({ 
+        forceMode: true, 
+        targetIp: targetIp,
+        debugMode: global.DEBUG_MODE === true // carry over to new session
+    }));
+	
+	// 🔥 EXECUTE UNIFIED SMART SHUTDOWN
+    await powerOffAllSpeakers();
+	
     // 2. Release the UI immediately
     res.json({ success: true, message: "Flag set. Restarting Hybrid container..." });
 
@@ -365,4 +508,3 @@ router.post('/admin/force_injection', (req, res) => {
 
 module.exports = router;
 
- 
