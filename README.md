@@ -1,4 +1,4 @@
-# V3.4 Quick Notes: 
+# V3.4.2 Quick Notes: 
 * 🔊 Addresses most of the known bugs including issue 20
 * 🔊 Includes a complete revamp of the Bose cloud emulation inject sequence. It is now completely automated (does not require USB Hijack)
 * 🔊 Bose Cloud (Hybrid) has been simplified and is more stable. Prior heavy lifting moved to new Pre-Flight module
@@ -9,7 +9,7 @@
 
 ### ***BTW: You can see status of issues, discussions and timings using the list labels filters.***
 
-# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.4
+# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.4.2
 
 **A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch 10, 20, & 30 Speakers and Wireless Link. Physical Presets Included!**
 
@@ -130,7 +130,7 @@ Install Music Assistant (MASS):  ***version 2.8.5 or later is required***
 
 ### <img src="public/images/hybrid_icon.png" width="18"> Setting up SoundTouch Hybrid
 
-⚠️ **Important Upgrade Note For Existing V1 & V2 SoundTouch Hybrid Installations:** V3 has significant architectural changes including transitioning to streamlined pre-built Docker image. Because of fundamental changes to the system and file structures, you cannot simply update your existing container. This requires a complete fresh install.
+⚠️ **Important Upgrade Note For Existing V1 & V2 SoundTouch Hybrid Installations:** V3.4.2 has significant architectural changes including transitioning to streamlined pre-built Docker image. Because of fundamental changes to the system and file structures, you cannot simply update your existing container. This requires a complete fresh install.
 
 Before proceeding with the instructions below, please do the following:
    * **Backup Your Data:** Save a copy of your existing `.env`, `library.json` and `speakers.json` files. You need these to reference your specific IPs/ports/etc configs.
