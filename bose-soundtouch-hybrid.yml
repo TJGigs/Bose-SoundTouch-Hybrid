@@ -39,14 +39,14 @@ services:
     environment:
       - NODE_ENV=production
       - TRUST_PROXY=${TRUST_PROXY:-false} 
-
+      
       # ==========================================================
       # TIMEZONE SETTING (REQUIRED FOR ACCURATE LOGS)
       # Find your exact timezone format here: https://nodatime.org/TimeZones
       # Example: America/New_York, Europe/London, Australia/Sydney
       # ==========================================================
-      - TZ=America/Los_Angeles  # <-- Change this to your local timezone    
-    
+      - TZ=America/Los_Angeles  # <-- Change this to your local timezone
+      
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       
@@ -71,5 +71,6 @@ services:
       ################################################################################
       
       # - /your/actual/absolute/path/here:/app/config
- 
- restart: unless-stopped
+      
+    restart: unless-stopped
+    
