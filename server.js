@@ -1,8 +1,8 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.4.4";
-const ENV_SCHEMA_VERSION = "v3.4.4"; 
+const CURRENT_VERSION = "v3.5";
+const ENV_SCHEMA_VERSION = "v3.5"; 
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 const express = require('express');
 const fs = require('fs');
@@ -386,15 +386,22 @@ if (!isReady) {
         console.log(`-------------------------------------------------------------------------`);
         ALIVE_SPEAKERS.forEach(s => deviceState.initDevice(s));
         
-// STEP 5: The Grand Introduction (Restart MASS)
+		// STEP 5: The Introduction (Restart MASS)
         console.log(`\n-----------------------------------------------------------------------`);
         console.log(`[Boot] 🧹 Triggering Music Assistant restart for a clean network state...`);
         console.log(`-----------------------------------------------------------------------\n`);
+        
+        let dockerRestartSuccess = false;
         try {
             await dockerAction('restart');
             console.log(`\n[Boot] ⏳ Waiting for Music Assistant Docker container to boot...`);
+            dockerRestartSuccess = true;
         } catch (e) {
-            console.error(`[Boot] ❌ Docker Restart Failed: Check socket permissions.`);
+            const configuredName = process.env.MASS_CONTAINER_NAME || "NOT SET";
+            console.error(`[Boot] ❌ Docker Restart Failed: ${e.message}`);
+            console.error(`[Boot] 💡 The app tried to restart the container named: "${configuredName}"`);
+            console.error(`[Boot] 💡 Please verify this exactly matches your Music Assistant container name in your config/.env file.`);
+            console.error(`[Boot] 💡 Also ensure the docker.sock volume is mapped correctly in your docker-compose.yml file.\n`);
         }
 
         let massHealth = { isOnline: false, version: "Unknown" };
@@ -412,7 +419,13 @@ if (!isReady) {
         if (healthAttempts > 0) console.log(); // Clear the line after dots finish
 
         if (massHealth.isOnline) {
-            console.log(`[Boot] ✅ Music Assistant restarted successfully (v${massHealth.version}).`);
+            // Check the flag to print the correct message!
+            if (dockerRestartSuccess) {
+                console.log(`[Boot] ✅ Music Assistant restarted successfully (v${massHealth.version}).`);
+            } else {
+                console.log(`[Boot] ⚠️ Music Assistant is online (v${massHealth.version}), but was NOT restarted.`);
+            }
+            
             const minReq = [2, 8, 5];
             const current = massHealth.version.split('.').map(Number);
             const isOutdated = current.some((num, i) => num < minReq[i]);

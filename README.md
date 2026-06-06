@@ -1,17 +1,23 @@
-# V3.4.2 Quick Notes: 
-* 🔊 Addresses most of the known bugs including issue 20
-* 🔊 Includes a complete revamp of the Bose cloud emulation inject sequence. It is now completely automated (does not require USB Hijack)
-* 🔊 Bose Cloud (Hybrid) has been simplified and is more stable. Prior heavy lifting moved to new Pre-Flight module
+# V3.5 Quick Notes: 
+*	🔊 Addresses all known bugs and Several Enhancements
+*	🔊 Includes a complete revamp of the Bose cloud simulation inject sequence. Now completely automated (no USB Stick)
+*	🔊 Auto config options and additional system tools on the Tools page to control app behavior and trouble shooting
+*	🔊 Beta version of Stereo Pairing of ST10s. I need testers because I only have 1 ST10
+*	🔊 You must use (download) the new v3.5 bose-soundtouch-hybrid.yml. It has installs changes in addition to the updated version tag (do not use your old YML)
+*	🔊 Startup will also copy a new .ENV to your directory. It will backup your old .ENV. (do not use your old .ENV)
+*	🔊 Startup uses your existing speaker, library and settings json. If you have already have them in will copy in templates you.
+* 🔊 https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/blob/main/bose-soundtouch-hybrid.yml
 
 ## Future Releases and Timing:
-* 📅 V3.5 address remaining new or old bugs (hopefully in another week)
-* 📅 V4 Enhancements target mid-June
+* 📅 V4 Enhancements target end June
 
 ### ***BTW: You can see status of issues, discussions and timings using the list labels filters.***
 
-# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.4.2
+Install: https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/edit/main/README.md#installations-via-docker-compose
 
-**A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch 10, 20, & 30 Speakers and Wireless Link. Physical Presets Included!**
+# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.5
+
+**A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch 10, 20, 30, Wave Speakers and Wireless Link. Physical Presets Included!**
 
 <img src="public/images/bose_icon.png" width="20">  The Bose shut down of their SoundTouch Cloud Service (May 2026) degraded the Bose SoundTouch intelligent, multi-room audio speakers into "dumb" receivers dependent on a phone's active connection. This represents a **significant loss of functionality** for the SoundTouch 10, 20, and 30 Speakers and Wireless Link Adapter. 
 
@@ -147,6 +153,8 @@ Before proceeding with the instructions below, please do the following:
    * Command Line: Navigate to your folder and run: `docker compose -f bose-soundtouch-hybrid.yml up -d`
    * Note: The container will download the image, create the necessary configuration files in your folder, and then pause waiting for you to fill them out.
    * <img width="686" height="191" alt="image" src="https://github.com/user-attachments/assets/f1727099-a2f4-4b94-b884-3a25cb13900c" />
+   * <img width="577" height="221" alt="image" src="https://github.com/user-attachments/assets/f0a7d781-adce-4559-a81e-868e96a7e786" />
+
 
 
   
@@ -178,5 +186,3 @@ Before proceeding with the instructions below, please do the following:
 * **Official Shutdown Discussion:** The original community thread tracking Bose's EOL announcement and API release [Bose EOL Reddit](https://www.reddit.com/r/bose/comments/1o2cnhw/bose_ending_cloud_support_for_soundtouch/).
 * **The Reddit "Alternative App" Megathread:** Ongoing conversation about replacing the Bose App. [Bose Alternatives Reddit](https://www.reddit.com/r/bose/comments/1o8my2n/soundtouch_app_alternatives/).
 * **The Bose Wiki (App Alternatives):** A community-maintained list of current workarounds and projects. [Bose Alternatives Wiki](https://bose.fandom.com/wiki/SoundTouch_app_alternatives).
-* **[GitHub Soundcork-repo](https://github.com/deborahgu/soundcork).**
-* **[GitHub Ueberboese-repo](https://github.com/julius-d/ueberboese-api).**

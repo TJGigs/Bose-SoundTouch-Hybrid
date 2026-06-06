@@ -69,7 +69,7 @@ let lastRestartDate = null;
 
 async function runSpeakerAudit() {
     console.log(`\n=======================================================================`);
-    console.log(`[Scheduler] 🕒 2:00 AM Routine: Executing Speaker Preset Audit...`);
+    console.log(`[Scheduler] 🕒 4:00 AM Routine: Executing Speaker Preset Audit...`);
     console.log(`=======================================================================`);
     
     const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
@@ -137,7 +137,7 @@ async function runSpeakerAudit() {
 // routes/utils.js — Update this function verbatim
 async function runSystemRestart() {
     console.log(`\n=======================================================================`);
-    console.log(`[Scheduler] 🕒 3:00 AM Routine: Executing Scheduled System Restart...`);
+    console.log(`[Scheduler] 🕒 5:00 AM Routine: Executing Scheduled System Restart...`);
     console.log(`=======================================================================`);
     
     try {
@@ -178,10 +178,10 @@ function startScheduler() {
         // 🕰️ SCHEDULER CONFIGURATION VARIABLES
         // ====================================================================
         // Change these values to test different execution times (24-hour format)
-        const AUDIT_HOUR = 2;
+        const AUDIT_HOUR = 4;
         const AUDIT_MINUTE = 0; 
 		
-        const RESTART_HOUR = 3;
+        const RESTART_HOUR = 5;
         const RESTART_MINUTE = 0;
         // ====================================================================
         // 1. SPEAKER AUDIT SEQUENCE
@@ -201,6 +201,45 @@ function startScheduler() {
     }, 60000); 
 }
 
+// ====================================================================
+// --- NEW: UNIFIED SMART PRESET ENGINE ---
+// ====================================================================
+async function executeSmartPreset(ip, id) {
+    // Dynamic requires to prevent circular dependency loops
+    const mass = require('./mass'); 
+    const deviceState = require('../device_state');
+
+    console.log(`\n[Smart Engine] ⚙️ Executing Preset ${id} for ${ip}...`);
+    
+    // 1. Log the memory (Moved from old Bridge)
+    mass.setPresetMemory(ip, id);
+
+    // 2. Fetch the assignment (Moved from old Bridge)
+    const match = module.exports.getPresetAssignment(ip, id);
+    
+    if (match && match.uri) {
+        // 🌟 RESTORED: Your exact original log
+        console.log(`   ✅ Triggering via MASS: ${match.name}`);
+        
+        // 3. Lock the UI to prevent bouncing
+        deviceState.setExpectation(ip, 'PRESET', id);
+        
+        try {
+            // 🌟 RESTORED: Your exact original mass.playMedia signature
+            await mass.playMedia(ip, match);
+            return true; // 🌟 FIXED: Tells bridge.js it was successful!
+        } catch (e) {
+            console.error(`[Smart Engine] ❌ Failed to play preset: ${e.message}`);
+            return false;
+        }
+    } else {
+        // 🌟 RESTORED: Your exact original log
+        console.log(`   ⚠️ No item assigned to Slot ${id}`);
+        return false; // 🌟 FIXED: Tells bridge.js to abort the silence stream!
+    }
+}
+
+
 module.exports = {
     DEFAULT_ICON,
     buildImageUrl,
@@ -208,5 +247,6 @@ module.exports = {
     parseIp,
     scrubText,
 	startScheduler,
-	runSpeakerAudit
+	runSpeakerAudit,
+	executeSmartPreset
 };

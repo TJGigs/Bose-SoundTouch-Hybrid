@@ -44,6 +44,7 @@ function getSettings() {
         scheduledSpeakerAudit: true,
         scheduledRestart: false,
         includeReboot: false,
+		bypassCloudEmulation: false, 
         searchMenuOrder: ['global', 'radio', 'nas', 'spotify']
     };
 }
@@ -596,6 +597,27 @@ router.get('/admin/debug_state', (req, res) => {
     });
 });
 
+// --- SYSTEM VERSIONS & TIMEZONE ---
+router.get('/admin/system_versions', (req, res) => {
+    try {
+        res.json({
+            //  pulls global variables set in server.js!
+            app: global.APP_VERSION || "????",
+            mass: global.MASS_VERSION || "????",
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "????"
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+
+
+
+
+
+
+
 // --- UNIFIED SMART SHUTDOWN ENGINE ---
 // Used by both the UI and the Background Scheduler
 async function executeSmartShutdown(injectTarget = null, rebootTarget = null) {
@@ -655,6 +677,63 @@ router.post('/admin/force_audit', async (req, res) => {
         console.error(`[Admin] Failed to trigger manual audit: ${e.message}`);
         res.status(500).json({ success: false });
     }
+});
+
+// ============================================================================
+// ST10 STEREO PAIRING API (Beta Configuration)
+// ============================================================================
+const stereoPairsFile = require('path').join(process.cwd(), 'config', 'stereo_pairs.json');
+
+const getStereoPairs = () => {
+    try {
+        if (!fs.existsSync(stereoPairsFile)) return [];
+        return JSON.parse(fs.readFileSync(stereoPairsFile, 'utf8'));
+    } catch (err) {
+        console.error(`[Admin] ❌ Error reading stereo pairs file:`, err.message);
+        return [];
+    }
+};
+
+const saveStereoPairs = (data) => {
+    try {
+        fs.writeFileSync(stereoPairsFile, JSON.stringify(data, null, 2));
+        console.log(`[Admin] 💾 Successfully saved ${data.length} stereo pair(s) to disk.`);
+    } catch (err) {
+        console.error(`[Admin] ❌ Error writing stereo pairs file:`, err.message);
+    }
+};
+
+router.get('/admin/stereo-pairs', (req, res) => {
+    if (global.DEBUG_MODE) {
+        console.log(`[Admin] 📥 Fetching active stereo pairs...`);
+    }
+    res.json(getStereoPairs());
+});
+
+router.post('/admin/stereo-pairs', (req, res) => {
+    const { leftIp, rightIp, name } = req.body;
+    console.log(`[Admin] ➕ Creating new stereo pair: "${name}" (L: ${leftIp} | R: ${rightIp})`);
+    
+    const pairs = getStereoPairs();
+    const newPair = {
+        id: Date.now().toString(),
+        name,
+        leftIp,
+        rightIp,
+        stereoXml: true 
+    };
+    
+    pairs.push(newPair);
+    saveStereoPairs(pairs);
+    res.json({ success: true, pair: newPair });
+});
+
+router.delete('/admin/stereo-pairs/:id', (req, res) => {
+    console.log(`[Admin] 🗑️ Deleting stereo pair ID: ${req.params.id}`);
+    let pairs = getStereoPairs();
+    pairs = pairs.filter(p => p.id !== req.params.id);
+    saveStereoPairs(pairs);
+    res.json({ success: true });
 });
 
 module.exports = {

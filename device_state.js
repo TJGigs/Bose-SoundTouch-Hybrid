@@ -181,8 +181,17 @@ function resolveMetadataAndStatus(nativeData, massData, source, isPausedByShadow
 function handleWakeMemory(ip, isStandby, activePreset, finalPlayStatus) {
     if (!getAutoResumeSetting()) return; // Check settings.json
 
-    // 1. RECORDING
+    // 1. RECORDING & CANCELLATION
     if (!isStandby) {
+        
+        // 🌟 THE FIX: If the speaker natively starts playing a preset or stream within the 2.5s window,
+        // cancel the pending Auto-Resume timer so we don't hijack the user's physical button press!
+        if (AUTO_RESUME_TIMERS[ip] && (activePreset > 0 || finalPlayStatus === 'PLAY_STATE')) {
+            console.log(`[DeviceState] 🛑 Auto-Resume Cancelled: Speaker natively loaded a source.`);
+            clearTimeout(AUTO_RESUME_TIMERS[ip]);
+            AUTO_RESUME_TIMERS[ip] = null;
+        }
+
         if (activePreset > 0) {
             // Playing a preset -> Remember it for the next boot
             WAKE_MEMORY[ip] = activePreset;
@@ -207,9 +216,7 @@ function handleWakeMemory(ip, isStandby, activePreset, finalPlayStatus) {
             AUTO_RESUME_TIMERS[ip] = setTimeout(async () => {
                 
                 // --- THE FIX (ISSUE #55) ---
-                // If user physically pressed preset to turn the speaker ON,
-                // bridge will have updated the preset memory timestamp within the last few seconds.
-                // SO bypass auto-resume so not to interrupt the new selection
+                // Retained for Web UI interactions
                 const mem = mass.getPresetMemory(ip);
                 if (mem && (Date.now() - mem.timestamp < 5000)) {
                     console.log(`[DeviceState] 🛑 Auto-Resume Bypassed: User woke speaker via Preset ${mem.id}.`);
@@ -350,11 +357,11 @@ async function initDevice(device) {
                 
 				// --- 🚨 THE UNFILTERED RAW WEBSOCKET LOGGER 🚨 ---
                 // prints everything before the code can filter it out
-                if (global.DEBUG_MODE) {
+/*                 if (global.DEBUG_MODE) {
                     console.log(`\n[RAW WS DUMP] 📥 from ${device.ip}:`);
                     console.log(rawXml);
                     console.log(`--------------------------------------\n`);
-                }
+                } */
 
                 // 2. THE PRE-SCRUBBER: Sanitize the raw XML before parsing
                 rawXml = rawXml.replace(/\ufffd/g, 'a').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
@@ -375,6 +382,38 @@ async function initDevice(device) {
                 if (result.updates.volumeUpdated) {
                     NATIVE_CACHE[device.ip].volume = parseInt(result.updates.volumeUpdated.volume.actualvolume);
                 }
+				
+				
+				// --- NEW: THE WEBSOCKET PRESET INTERCEPTOR (BYPASS CLOUD) ---
+                if (result.updates.nowSelectionUpdated) {
+                    const selection = result.updates.nowSelectionUpdated;
+                    
+                    // Parse the Preset ID from the XML structure
+                    let presetId = 0;
+                    if (selection.preset) {
+                        presetId = parseInt(selection.preset.id || (selection.preset.$ && selection.preset.$.id) || 0);
+                    }
+                    
+                    if (presetId > 0) {
+                        // Check if bypass is enabled in settings.json
+                        const settingsPath = path.join(process.cwd(), 'config', 'settings.json');
+                        let bypassEnabled = false;
+                        if (fs.existsSync(settingsPath)) {
+                            try {
+                                const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+                                bypassEnabled = settings.bypassCloudEmulation === true; 
+                            } catch(e) {}
+                        }
+                        
+                        if (bypassEnabled) {
+                            console.log(`\n[DeviceState] 🚀 Bypass Cloud ON: Intercepted WebSocket selection for Preset ${presetId} on ${device.ip}`);
+                            utils.executeSmartPreset(device.ip, presetId);
+                        }
+                    }
+                }
+				
+								
+				
 
                 // A hardware change occurred! Re-lock the UI if an expectation isn't already active.
                 if (!EXPECTATIONS[device.ip]) FINAL_STATE[device.ip].readyForDisplay = false; 

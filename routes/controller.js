@@ -157,6 +157,34 @@ router.get('/status', async (req, res) => {
         // Clone the array so we don't accidentally mutate the backend cache
         states = JSON.parse(JSON.stringify(states));
 
+		// --- NEW: STEREO PAIRING UI INJECTION ---
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const stereoFile = path.join(process.cwd(), 'config', 'stereo_pairs.json');
+            
+            if (fs.existsSync(stereoFile)) {
+                const pairs = JSON.parse(fs.readFileSync(stereoFile, 'utf8'));
+                states.forEach(state => {
+                    if (!state) return; 
+					//SAVE Original Name for Tools
+					state.originalName = state.name;
+                    const pairAsLeft = pairs.find(p => p.leftIp === state.ip);
+                    const pairAsRight = pairs.find(p => p.rightIp === state.ip);
+
+                    if (pairAsLeft) {
+                        state.stereoRole = 'LEFT';
+                        state.name = `${pairAsLeft.name} (L+R Pair)`; 
+                    } else if (pairAsRight) {
+                        state.stereoRole = 'RIGHT';
+                    }
+                });
+            }
+        } catch (err) {
+            console.error("[Control] ⚠️ Error processing stereo_pairs.json:", err.message);
+        }
+
+
         // 2. MASTER-TO-SLAVE UI INHERITANCE
         // Find all active Master speakers
         const masters = states.filter(s => s.zone && s.zone.master === s.mac);
@@ -254,6 +282,23 @@ router.post('/volume', async(req, res) => {
     }
 });
 
+router.post('/balance', async(req, res) => {
+    const { ip, value } = req.body;
+    
+    // 🌟 1. This prints to your Live Server Logs on the Tools page
+    console.log(`[Control] ⚖️ L/R Balance adjusted for ${ip} to value: ${value}`);
+    
+    try {
+        // 🌟 2. This fires the actual XML payload directly to the Bose hardware
+        await sendBoseXml(ip, 'balance', `<balance>${value}</balance>`);
+        
+        res.send({ success: true });
+    } catch (e) {
+        console.error(`[Control] ❌ Failed to set balance on ${ip}: ${e.message}`);
+        res.status(500).send(e.message);
+    }
+});
+
 router.post('/play_content', async(req, res) => {
     const { ip, contentItem } = req.body;
     mass.setPresetMemory(ip, 0);
@@ -325,6 +370,33 @@ router.post('/join', async(req, res) => {
             await sendBoseXml(slaveIp, 'key', `<key state="release" sender="Gabbo">POWER</key>`);
             return res.send({ success: true, message: "Fallback to Power On" });
         }
+		
+		// =================================================================================
+        // 🔊 AUTO-SYNC SLAVE VOLUME TO MASTER
+        // Reads user preferences. If enabled, fetches Master volume and applies it to Slave.
+        // =================================================================================
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const settingsPath = path.join(process.cwd(), 'config', 'settings.json');
+            const settings = fs.existsSync(settingsPath) ? JSON.parse(fs.readFileSync(settingsPath, 'utf8')) : {};
+
+            if (settings.autoSyncVolume) {
+                const mv = await axios.get(`http://${masterIp}:8090/volume`);
+                const mp = new xml2js.Parser({ explicitArray: false });
+                const mvd = await mp.parseStringPromise(mv.data);
+                const masterVol = parseInt(mvd.volume.actualvolume);
+
+                if (masterVol !== restoreVol) {
+                    console.log(`[Control] 🔊 Auto-Sync: Matching Slave (${slaveIp}) to Master (${masterIp}) at Vol: ${masterVol}`);
+                    restoreVol = masterVol; // Overwrite the slave's original volume
+                }
+            }
+        } catch (e) {
+            console.log(`[Control] ⚠️ Auto-Sync failed to read Master Volume. Using Slave's default.`);
+        }
+        // =================================================================================
+				
 
         let slaveMac = MAC_CACHE[slaveIp];
         if (!slaveMac) {
@@ -338,7 +410,17 @@ router.post('/join', async(req, res) => {
         await sleep(PRESS_DELAY);
         await sendBoseXml(slaveIp, 'key', `<key state="release" sender="Gabbo">POWER</key>`);
 
+		// ================================================================================
+        // 🎵 NATIVE MULTI-ROOM SYNC (SYNC_TO_ZONE)
+        // Sending 'rebroadcastlatencymode' to the Master speaker right before grouping 
+        // forces its hardware to use AV-grade kernel timestamping. This locks the internal 
+        // clocks of the Master and Slave together, preventing the "hallway echo" effect.
+        // =================================================================================
         setTimeout(() => {
+            // High-priority latency lock for Master
+            sendBoseXml(masterIp, 'rebroadcastlatencymode', '<rebroadcastlatencymode mode="SYNC_TO_ZONE"/>');
+            
+            // Execute the standard group command
             const xml = `<zone master="${masterMac}"><member ipaddress="${slaveIp}">${slaveMac}</member></zone>`;
             sendBoseXml(masterIp, 'setZone', xml);
         }, 500);
@@ -346,12 +428,12 @@ router.post('/join', async(req, res) => {
         setTimeout(() => sendBoseXml(slaveIp, 'volume', `<volume>${restoreVol}</volume>`), 3000);
 
         res.send({ success: true });
-    } catch (err) {
-        res.status(500).send({ error: err.message });
-    } finally {
-        SYNC_LOCKS.delete(slaveIp);
-    }
-});
+			} catch (err) {
+				res.status(500).send({ error: err.message });
+			} finally {
+				SYNC_LOCKS.delete(slaveIp);
+			}
+		});
 
 router.post('/zone_volume', async(req, res) => {
     const { masterIp, delta } = req.body;
@@ -383,7 +465,47 @@ router.post('/zone_volume', async(req, res) => {
     }
 });
 
-router.get('/health', (req, res) => res.json({ healthy: mass.getHealth() }));
-router.post('/health/reset', (req, res) => { mass.resetHealth(); res.json({ success: true }); });
+// =================================================================================
+// 🩺 HEALTH CHECK & AUTO-RECOVERY INTERCEPTOR
+// If the UI asks for health and the system is down, check preferences BEFORE 
+// telling the UI. If auto-recover is on, aggressively fix it and fake a healthy response.
+// =================================================================================
+let isAutoRecovering = false; // 🔒  RACE-CONDITION LOCK
 
+router.get('/health', async (req, res) => {
+    let isHealthy = mass.getHealth();
+
+    // 1. If it's broken AND and aren't already fixing it
+    if (!isHealthy && !isAutoRecovering) {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const settingsPath = path.join(process.cwd(), 'config', 'settings.json');
+            const settings = fs.existsSync(settingsPath) ? JSON.parse(fs.readFileSync(settingsPath, 'utf8')) : {};
+
+            if (settings.autoRestartMass) {
+                isAutoRecovering = true; // 🔒 Lock so other tabs don't fire this!
+                console.log(`\n[Auto-Recovery] 🚨 Intercepted Health Check: MASS is down. Auto-reloading DLNA & AirPlay...`);
+                
+                await mass.forceRescan(true, 'dlna');
+                await mass.forceRescan(true, 'airplay');
+                
+                mass.resetHealth();
+                isAutoRecovering = false; // 🔓 Unlock
+                isHealthy = true; 
+            }
+        } catch (e) {
+            isAutoRecovering = false; // 🔓 Unlock on error
+            console.error(`[Auto-Recovery] ⚠️ Failed to read settings or execute recovery: ${e.message}`);
+        }
+    } 
+    // 2. If it's broken BUT   currently in the middle of fixing it
+    else if (!isHealthy && isAutoRecovering) {
+        isHealthy = true; // tell this to duplicate tabs so they don't pop up the red modal
+    }
+
+    res.json({ healthy: isHealthy });
+});
+
+router.post('/health/reset', (req, res) => { mass.resetHealth(); res.json({ success: true }); });
 module.exports = router;

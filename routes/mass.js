@@ -604,7 +604,15 @@ async function forceRescan(aggressive = false, targetProvider = 'dlna') {
     try {
         if (aggressive) {
             console.log(`[MASS] 🚨 Aggressive Recovery: Reloading the ${targetProvider.toUpperCase()} provider...`);
-            await sendAdminCommand('config/providers/reload', { instance_id: targetProvider });           
+            await sendAdminCommand('config/providers/reload', { instance_id: targetProvider });
+			// ==============================================================
+            // 🧹 NEW: FLUSH THE RAM CACHES
+            // Because the provider reloaded, MASS generated new Player IDs.
+            // We must wipe our memory so we are forced to fetch the new ones!
+            // ==============================================================
+            for (const key in PLAYER_ID_CACHE) delete PLAYER_ID_CACHE[key];
+            for (const key in PLAYER_IP_CACHE) delete PLAYER_IP_CACHE[key];
+            for (const key in PLAYER_NAME_CACHE) delete PLAYER_NAME_CACHE[key];			
             // Give the provider 1.5 seconds to boot up
             await new Promise(r => setTimeout(r, 1500));
             return true;

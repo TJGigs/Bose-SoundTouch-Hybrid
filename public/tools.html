@@ -47,15 +47,18 @@
             <div style="display:flex; gap:10px;">
                 <button class="btn-help" onclick="toggleTheme()">🌓 Theme</button>
                 <button class="btn-help" onclick="document.getElementById('doc-modal').style.display='flex'">📚Reference</button>
-                <button class="btn-help" onclick="document.getElementById('h-modal').style.display='flex'">💡Setup Guides</button>
+                <button class="btn-help" onclick="document.getElementById('h-modal').style.display='flex'">💡How To Guides</button>
             </div>
         </div>
 		
 
 
-		<div class="card" style="margin-bottom: 25px; border-left: 4px solid var(--accent); break-inside: avoid;">
-			<h3 style="margin: 0 0 5px 0;">⚙️ Application Preferences</h3>
-			<div class="sub-head" style="margin-bottom: 15px;">Configure UI layouts and background automation rules.</div>
+			<div class="card" style="margin-bottom: 25px; border-left: 4px solid var(--accent); break-inside: avoid;">
+				<h3 style="margin: 0 0 5px 0;">⚙️ Application Preferences</h3>
+				<div class="sub-head" style="margin-bottom: 15px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+					<span>Configure UI layouts and background automation rules.</span>
+					<span id="tz-display" style="background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid var(--border);">TZ: Loading...</span>
+				</div>
 			
 			<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
 				
@@ -77,17 +80,18 @@
 							<label class="pref-label"><input type="checkbox" id="pref_autoRestart" class="pref-checkbox"> Auto-Reload DLNA & AirPlay on Connection Error</label>
 							<label class="pref-label"><input type="checkbox" id="pref_autoSync" class="pref-checkbox"> Auto-Sync Slave Volume on Grouping</label>
 							<label class="pref-label"><input type="checkbox" id="pref_mobileAutoSortSpeakers" class="pref-checkbox"> Auto-Sort Active Speakers (Mobile Only)</label>
-							<label class="pref-label"><input type="checkbox" id="pref_scheduledSpeakerAudit" class="pref-checkbox"> Enable 2:00 AM Speaker Audit</label>
+							<label class="pref-label"><input type="checkbox" id="pref_scheduledSpeakerAudit" class="pref-checkbox"> Enable 4:00 AM Speaker Audit</label>
 
 							<div style="padding-left: 0px; margin-top: -5px;">
 								<label class="pref-label" style="display: flex; align-items: center; gap: 8px;">
 									<input type="checkbox" id="pref_scheduledRestart" class="pref-checkbox" onchange="handleScheduledRestartToggle()">
-									Enable 3:00 AM System Restart
+									Enable 5:00 AM System Restart
 								</label>
 								<label class="pref-label" style="margin-left: 28px; font-size: 0.85em; opacity: 0.8; margin-top: 4px;">
 									<input type="checkbox" id="pref_includeReboot" class="pref-checkbox" disabled> Include All Speaker Reboots
 								</label>						
 							</div>
+							<label class="pref-label"><input type="checkbox" id="pref_bypassCloudEmulation" class="pref-checkbox"> Bypass Cloud Simulation Beta: (works so far... Needs no speaker config/inject/handskake!)</label>
 						</div>
 						<button class="btn" style="background: var(--accent); color: #000; font-weight: bold; width: 100%; margin-top: 15px; border: none;" onclick="savePreferences()">💾 Save Automation Rules</button>
 					</div>
@@ -169,7 +173,7 @@
 							</div>
 						</div>
 					</div>
-				</div>
+		</div>
 
 
 
@@ -202,34 +206,89 @@
 					</div>
 				</div>
 			</div>
-			
-			<div class="card" style="margin-bottom: 25px; border-left: 3px solid #1abc9c; height:auto;">
-				<h3>📶 Wi-Fi Provisioning</h3>
-				<div class="sub-head">Push Wi-Fi credentials to a Wi-Fi connected speaker or via USB/Micro-USB setup cable.</div>
 				
-				<div class="warning-box">
-					<strong>⚠️ IMPORTANT:</strong> The Network Name (SSID) and Password must be typed exactly and are <strong>case-sensitive</strong>. If entered incorrectly, the speaker will fail to connect and you will have to use either the USB cable approach or the native "<span style="font-size: 0.85em;">MANUAL WI-FI UPDATE</span>" defined in the Setup Guid to fix it.
+			<div class="card" style="margin-bottom: 25px; border-left: 3px solid #f39c12; height:auto;">
+				<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="const el = document.getElementById('stereoPairingCollapse'); el.style.display = el.style.display === 'none' ? 'block' : 'none';">
+					<h3 style="margin:0;">🎧 ST10 Stereo Pairing (Beta: Need Testers I only have 1 ST10 so need testers to provide feedback on what works/broken/behaviors/downstream impacts et)</h3>
+					<span id="stereoPairCount" style="background: var(--input-bg); padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid var(--border);">0 Pairs</span>
 				</div>
+				<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">Bond two SoundTouch 10s into a persistent Left/Right stereo pair.</div>
 				
-				<div class="stream-grid" style="margin-top:15px;">
-					<div>
-						<label style="display:block; font-size:0.75em; color:var(--text); opacity:0.8; margin-bottom:5px;">NETWORK NAME (SSID)</label>
-						<input type="text" id="wifi-ssid" placeholder="My Home Wi-Fi" style="width:100%; box-sizing:border-box; background:var(--bg-color); color:var(--text); border:1px solid #777; padding:8px; border-radius:4px;">
+				<div id="stereoPairingCollapse" style="display: none; margin-top: 15px;">
+					<h6 style="font-weight: bold; color: var(--text); margin-bottom: 10px;">Active Combinations</h6>
+					<ul id="activeStereoPairsList" style="list-style: none; padding: 0; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+						<li style="padding: 10px; background: var(--input-bg); color: var(--text-secondary); font-style: italic;">No active pairings found.</li>
+					</ul>
+
+					<hr style="border-color: var(--border); margin: 20px 0;">
+
+					<h6 style="font-weight: bold; color: var(--text); margin-bottom: 10px;">Create New Pair</h6>
+					<div style="display: flex; align-items: flex-end; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+						<div style="flex-grow: 1; min-width: 150px;">
+							<label for="leftSpeakerSelect" style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">LEFT CHANNEL</label>
+							<select id="leftSpeakerSelect" style="width:100%; background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+								<option value="" disabled selected>Select ST10...</option>
+							</select>
+						</div>
+						<div style="flex-grow: 1; min-width: 150px;">
+							<label for="rightSpeakerSelect" style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">RIGHT CHANNEL</label>
+							<select id="rightSpeakerSelect" style="width:100%; background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+								<option value="" disabled selected>Select ST10...</option>
+							</select>
+						</div>
+						<div style="flex-grow: 1; min-width: 150px;">
+							<label for="pairNameInput" style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">PAIR NAME</label>
+							<input type="text" id="pairNameInput" placeholder="e.g. Office Stereo" style="width:100%; background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+						</div>
+						<div>
+							<button id="saveStereoPairBtn" class="btn primary" style="white-space: nowrap; background:#f39c12; border:none; margin: 0; padding: 8px 15px;">
+								💾 Save Pair
+							</button>
+						</div>
 					</div>
-					<div>
-						<label style="display:block; font-size:0.75em; color:var(--text); opacity:0.8; margin-bottom:5px;">PASSWORD</label>
-						<input type="text" id="wifi-pass" placeholder="My Wi-Fi Password" style="width:100%; box-sizing:border-box; background:var(--bg-color); color:var(--text); border:1px solid #777; padding:8px; border-radius:4px;">
-					</div>
-				</div>
-				
-				<div class="stream-controls" style="margin-top:15px;">
-					<div style="display:flex; align-items:center; gap:10px; flex-grow: 1;">
-						<label style="color:var(--text); font-size:0.9em; white-space: nowrap;">Target:</label>
-						<select id="wifi-target" style="padding:8px; flex-grow:1; min-width:200px;"></select>
-					</div>
-					<button class="primary" onclick="pushWifi(this)" style="flex-shrink: 0; min-width:140px; background:#1abc9c; color:white;">📡 PUSH WI-FI</button>
 				</div>
 			</div>
+			
+
+
+
+        <div class="card shadow-sm mb-4">
+			
+			
+			<div class="card" style="margin-bottom: 25px; border-left: 3px solid #1abc9c; height:auto;">
+				<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleWifiWindow()">
+					<h3 style="margin:0;">📶 Wi-Fi Provisioning</h3>
+					<span id="wifi-chevron" style="color: var(--text-secondary); font-size: 1.2em;">▼</span>
+				</div>
+				<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">Push Wi-Fi credentials to a Wi-Fi connected speaker or via USB/Micro-USB setup cable.</div>
+				
+				<div id="wifi-container" style="display: none; margin-top: 15px;">
+					<div class="warning-box">
+						<strong>⚠️ IMPORTANT:</strong> The Network Name (SSID) and Password must be typed exactly and are <strong>case-sensitive</strong>. If entered incorrectly, the speaker will fail to connect and you will have to use either the USB cable approach or the native "<span style="font-size: 0.85em;">MANUAL WI-FI UPDATE</span>" defined in the Setup Guide to fix it.
+					</div>
+					
+					<div class="stream-grid" style="margin-top:15px;">
+						<div>
+							<label style="display:block; font-size:0.75em; color:var(--text); opacity:0.8; margin-bottom:5px;">NETWORK NAME (SSID)</label>
+							<input type="text" id="wifi-ssid" placeholder="My Home Wi-Fi" style="width:100%; box-sizing:border-box; background:var(--bg-color); color:var(--text); border:1px solid #777; padding:8px; border-radius:4px;">
+						</div>
+						<div>
+							<label style="display:block; font-size:0.75em; color:var(--text); opacity:0.8; margin-bottom:5px;">PASSWORD</label>
+							<input type="text" id="wifi-pass" placeholder="My Wi-Fi Password" style="width:100%; box-sizing:border-box; background:var(--bg-color); color:var(--text); border:1px solid #777; padding:8px; border-radius:4px;">
+						</div>
+					</div>
+					
+					<div class="stream-controls" style="margin-top:15px;">
+						<div style="display:flex; align-items:center; gap:10px; flex-grow: 1;">
+							<label style="color:var(--text); font-size:0.9em; white-space: nowrap;">Target:</label>
+							<select id="wifi-target" style="padding:8px; flex-grow:1; min-width:200px;"></select>
+						</div>
+						<button class="primary" onclick="pushWifi(this)" style="flex-shrink: 0; min-width:140px; background:#1abc9c; color:white;">📡 PUSH WI-FI</button>
+					</div>
+				</div>
+			</div>
+			
+			
 		</div>
 	</div>
 </div>	
@@ -381,6 +440,7 @@
 		            const subReboot = document.getElementById('pref_includeReboot');
 		            subReboot.checked = fullSettingsPayload.includeReboot === true;
 		            subReboot.disabled = !fullSettingsPayload.scheduledRestart;
+		            document.getElementById('pref_bypassCloudEmulation').checked = fullSettingsPayload.bypassCloudEmulation === true;
 
 		        }
 		    } catch (e) {
@@ -428,6 +488,7 @@
 		    fullSettingsPayload.scheduledSpeakerAudit = document.getElementById('pref_scheduledSpeakerAudit').checked;
 		    fullSettingsPayload.scheduledRestart = document.getElementById('pref_scheduledRestart').checked;
 		    fullSettingsPayload.includeReboot = document.getElementById('pref_includeReboot').checked;
+		    fullSettingsPayload.bypassCloudEmulation = document.getElementById('pref_bypassCloudEmulation').checked;
 		    await pushSettingsToServer("✅ Preferences saved successfully!");
 		}
 
@@ -584,27 +645,49 @@
 		    }
 		}
 
+		function toggleWifiWindow() {
+		    const container = document.getElementById('wifi-container');
+		    const chevron = document.getElementById('wifi-chevron');
+		    if (container.style.display === 'none') {
+		        container.style.display = 'block';
+		        chevron.innerText = '▲';
+		    } else {
+		        container.style.display = 'none';
+		        chevron.innerText = '▼';
+		    }
+		}
+
 		async function loadTools() {
-		    const statusRes = await fetch('/api/status');
-		    const devices = await statusRes.json();
+		    try {
+		        const statusRes = await fetch('/api/status');
+		        const devices = await statusRes.json();
 
-		    const allOptions = devices.filter(d => d.online).map(d => `<option value="${d.ip}">${d.name} (${d.ip})</option>`).join('');
-		    const usbOption = `<option value="203.0.113.1">🔌 USB Cable / Initial Wi-Fi Setup (203.0.113.1)</option>`;
+		        const allOptions = devices.filter(d => d.online).map(d => `<option value="${d.ip}">${d.name} (${d.ip})</option>`).join('');
+		        const usbOption = `<option value="203.0.113.1">🔌 USB Cable / Initial Wi-Fi Setup (203.0.113.1)</option>`;
 
-		    // Populate Wi-Fi dropdown
-		    const wifiTarget = document.getElementById('wifi-target');
-		    if (wifiTarget)
-		        wifiTarget.innerHTML = usbOption + allOptions;
+		        // Populate Wi-Fi dropdown
+		        const wifiTarget = document.getElementById('wifi-target');
+		        if (wifiTarget)
+		            wifiTarget.innerHTML = usbOption + allOptions;
 
-		    // Populate Force Injection dropdown (Add this!)
-		    const forceTarget = document.getElementById('forceSpeakerSelect');
-		    if (forceTarget)
-		        forceTarget.innerHTML = '<option value="all">All Speakers</option>' + allOptions;
+		        // Populate Force Injection dropdown
+		        const forceTarget = document.getElementById('forceSpeakerSelect');
+		        if (forceTarget)
+		            forceTarget.innerHTML = '<option value="all">All Speakers</option>' + allOptions;
 
-		    // Populate Force Reboot dropdown
-		    const rebootTarget = document.getElementById('forceRebootSelect');
-		    if (rebootTarget)
-		        rebootTarget.innerHTML = '<option value="all">All Speakers</option>' + allOptions;
+		        // Populate Force Reboot dropdown
+		        const rebootTarget = document.getElementById('forceRebootSelect');
+		        if (rebootTarget)
+		            rebootTarget.innerHTML = '<option value="all">All Speakers</option>' + allOptions;
+
+		        // ---> BOOT STEREO UI WITH SHARED DATA
+		        initStereoUI(devices);
+
+		    } catch (e) {
+		        console.error("Failed to load tools / status", e);
+		        // Still boot the stereo UI with an empty array so dummies inject
+		        initStereoUI([]);
+		    }
 		}
 
 		// --- EXISTING FUNCTIONS ---
@@ -781,21 +864,24 @@
 		        }, 5000);
 		    }
 		}
-		
+
 		async function triggerManualAudit() {
-		if (!confirm("Execute a manual Speaker Preset Audit now? Any speakers missing their presets will be rebooted.")) return;
-		
-		try {
-			const res = await fetch('/api/admin/force_audit', { method: 'POST' });
-			if (res.ok) {
-				alert("✅ Speaker Audit initiated in the background. Check server logs for details.");
-			} else {
-				alert("❌ Server rejected the audit request.");
-			}
-		} catch (e) {
-			alert("❌ Failed to reach the server: " + e.message);
+		    if (!confirm("Execute a manual Speaker Preset Audit now? Any speakers missing their presets will be rebooted."))
+		        return;
+
+		    try {
+		        const res = await fetch('/api/admin/force_audit', {
+		            method: 'POST'
+		        });
+		        if (res.ok) {
+		            alert("✅ Speaker Audit initiated in the background. Check server logs for details.");
+		        } else {
+		            alert("❌ Server rejected the audit request.");
+		        }
+		    } catch (e) {
+		        alert("❌ Failed to reach the server: " + e.message);
+		    }
 		}
-	}
 
 		async function pushWifi(btn) {
 		    const ip = document.getElementById('wifi-target').value;
@@ -936,14 +1022,224 @@
 		            const versions = await res.json();
 		            document.getElementById('badge-app-text').innerText = `${versions.app}`;
 		            document.getElementById('badge-mass-text').innerText = `v${versions.mass}`;
+		            document.getElementById('tz-display').innerText = `TZ: ${versions.timezone}`;
 		        }
 		    } catch (e) {
 		        console.error("[UI] Failed to load system versions: ", e);
 		    }
 		});
 
-		// Final execution commands
-		loadTools();
+		// ==========================================
+		// ST10 STEREO PAIRING UI LOGIC
+		// ==========================================
+		let st10Speakers = [];
+		let activePairs = []; // Track saved pairs to disable them in dropdowns
+
+		function initStereoUI(devices) {
+		    st10Speakers = devices.filter(s => s.type === 'SoundTouch 10');
+
+		    // --- INJECT DUMMIES FOR TESTING ---
+		    st10Speakers.push({
+		        ip: "10.0.0.91",
+		        name: "Dummy ST10 (Alpha)",
+		        type: "SoundTouch 10"
+		    }, {
+		        ip: "10.0.0.92",
+		        name: "Dummy ST10 (Bravo)",
+		        type: "SoundTouch 10"
+		    }, {
+		        ip: "10.0.0.93",
+		        name: "Dummy ST10 (Charlie)",
+		        type: "SoundTouch 10"
+		    }, {
+		        ip: "10.0.0.94",
+		        name: "Dummy ST10 (Delta)",
+		        type: "SoundTouch 10"
+		    });
+
+		    fetchStereoPairs();
+		}
+
+		function populateStereoDropdowns() {
+		    const leftSelect = document.getElementById('leftSpeakerSelect');
+		    const rightSelect = document.getElementById('rightSpeakerSelect');
+		    if (!leftSelect || !rightSelect)
+		        return;
+
+		    const leftVal = leftSelect.value;
+		    const rightVal = rightSelect.value;
+
+		    leftSelect.innerHTML = '<option value="" disabled selected>Select Left ST10...</option>';
+		    rightSelect.innerHTML = '<option value="" disabled selected>Select Right ST10...</option>';
+
+		    // Build a quick lookup of IPs that are already in a saved pair
+		    const pairedIps = new Set();
+		    activePairs.forEach(p => {
+		        pairedIps.add(p.leftIp);
+		        pairedIps.add(p.rightIp);
+		    });
+
+		    st10Speakers.forEach(spk => {
+		        const isAlreadyPaired = pairedIps.has(spk.ip);
+
+		        // 🌟 THE FIX: Use originalName if available, fallback to regular name
+		        const displayName = spk.originalName || spk.name;
+
+		        // Build Left Option
+		        const optLeft = new Option(displayName, spk.ip);
+		        if (isAlreadyPaired || spk.ip === rightVal) {
+		            optLeft.disabled = true;
+		            optLeft.style.color = 'var(--text-secondary)';
+		            optLeft.style.fontStyle = 'italic';
+		            if (isAlreadyPaired)
+		                optLeft.text += ' (Already Paired)';
+		        }
+		        leftSelect.add(optLeft);
+
+		        // Build Right Option
+		        const optRight = new Option(displayName, spk.ip);
+		        if (isAlreadyPaired || spk.ip === leftVal) {
+		            optRight.disabled = true;
+		            optRight.style.color = 'var(--text-secondary)';
+		            optRight.style.fontStyle = 'italic';
+		            if (isAlreadyPaired)
+		                optRight.text += ' (Already Paired)';
+		        }
+		        rightSelect.add(optRight);
+		    });
+
+		    leftSelect.value = leftVal || '';
+		    rightSelect.value = rightVal || '';
+		}
+
+		document.getElementById('leftSpeakerSelect')?.addEventListener('change', populateStereoDropdowns);
+		document.getElementById('rightSpeakerSelect')?.addEventListener('change', populateStereoDropdowns);
+
+
+		async function fetchStereoPairs() {
+		    try {
+		        //  Added /admin
+		        const res = await fetch('/api/admin/stereo-pairs');
+		        if (!res.ok) return;
+		        const pairs = await res.json();
+		        renderStereoPairs(pairs);
+		        populateStereoDropdowns(); // Re-disables IPs
+		    } catch (e) {}
+		}
+
+		function renderStereoPairs(pairs) {
+		    const list = document.getElementById('activeStereoPairsList');
+		    activePairs = pairs; // 🌟 FIX: Ensure the global tracking array stays updated
+		    document.getElementById('stereoPairCount').innerText = `${pairs.length} Pairs`;
+
+		    if (pairs.length === 0) {
+		        list.innerHTML = '<li style="padding: 10px; background: rgba(0,0,0,0.1); color: var(--text); opacity: 0.7; font-style: italic;">No active pairings found.</li>';
+		        return;
+		    }
+
+		    // 🌟 FIX: Helper function to look up the real hardware name by IP
+		    const getRealName = (ip) => {
+		        const spk = st10Speakers.find(s => s.ip === ip);
+		        return spk ? (spk.originalName || spk.name) : ip;
+		    };
+
+		    list.innerHTML = pairs.map(p => `
+				<li style="padding: 12px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+					<div>
+						<strong style="color: var(--text); font-size: 1.1em;">${p.name}</strong><br>
+						<small style="color: var(--text-secondary);">Left: ${getRealName(p.leftIp)} | Right: ${getRealName(p.rightIp)}</small>
+					</div>
+					<button class="btn-sm" style="background: var(--danger); color: white; border: none; cursor: pointer;" onclick="deleteStereoPair('${p.id}', '${p.leftIp}', '${p.rightIp}')">
+						🗑️ Delete
+					</button>
+				</li>
+			`).join('');
+		}
+
+		document.getElementById('saveStereoPairBtn')?.addEventListener('click', async() => {
+		    const leftSelect = document.getElementById('leftSpeakerSelect');
+		    const rightSelect = document.getElementById('rightSpeakerSelect');
+		    const nameInput = document.getElementById('pairNameInput');
+
+		    const leftIp = leftSelect.value;
+		    const rightIp = rightSelect.value;
+		    const name = nameInput.value.trim();
+
+		    if (!leftIp || !rightIp || !name)
+		        return alert("Select both speakers and provide a name.");
+
+		    if (!confirm(`Save "${name}" as a stereo pair?\n\nThis will reboot BOTH speakers to apply the left/right audio separation.`)) 
+		        return;
+
+		    const btn = document.getElementById('saveStereoPairBtn');
+		    const origText = btn.innerHTML;
+		    btn.innerHTML = `⏳ Saving...`;
+		    btn.disabled = true;
+
+		    try {
+		        // FIXED PATH: Added /admin
+		        const res = await fetch('/api/admin/stereo-pairs', {
+		            method: 'POST',
+		            headers: { 'Content-Type': 'application/json' },
+		            body: JSON.stringify({ leftIp, rightIp, name })
+		        });
+
+		        if (res.ok) {
+
+				// 🌟 AUTOMATED TARGETED REBOOTS (Ignores 10.0.0.9x Dummies)
+		        if (!leftIp.startsWith('10.0.0.9')) {
+		            fetch('/api/admin/reboot_speaker', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip: leftIp }) });
+		        }
+		        if (!rightIp.startsWith('10.0.0.9')) {
+		            fetch('/api/admin/reboot_speaker', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip: rightIp }) });
+		        }
+		            
+		            alert("✅ Pair saved! Reboot Commands sent to both speakers.\n\nThe network providers will aggressively reload in 90 seconds.");
+
+		            nameInput.value = '';
+		            leftSelect.value = '';
+		            rightSelect.value = '';
+		            fetchStereoPairs();
+		        } else {
+		            alert("❌ Failed to save pairing to the server.");
+		        }
+		    } catch (e) {
+		        alert("❌ Network Error: Could not reach the server.");
+		    }
+		    
+		    btn.innerHTML = origText;
+		    btn.disabled = false;
+		});
+
+		async function deleteStereoPair(id, leftIp, rightIp) {
+		    if (!confirm("Are you sure you want to delete this stereo pair?\n\nThis will reboot BOTH speakers to clear their stereo roles.")) 
+		        return;
+
+		    try {
+		        // FIXED PATH: Added /admin
+		        await fetch(`/api/admin/stereo-pairs/${id}`, { method: 'DELETE' });
+		        
+				// 🌟 AUTOMATED TARGETED REBOOTS (Ignores 10.0.0.9x Dummies)
+		        if (!leftIp.startsWith('10.0.0.9')) {
+		            fetch('/api/admin/reboot_speaker', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip: leftIp }) });
+		        }
+		        if (!rightIp.startsWith('10.0.0.9')) {
+		            fetch('/api/admin/reboot_speaker', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip: rightIp }) });
+		        }
+		        
+		        alert("✅ Pair deleted! Telnet Reboot Commands sent to both speakers.\n\nThey will return to standalone mode shortly.");
+		        fetchStereoPairs();
+		    } catch (e) {
+		        alert("❌ Error deleting pair.");
+		    }
+		}
+
+		// ==========================================
+		// FINAL EXECUTION COMMANDS
+		// ==========================================
+		document.addEventListener('DOMContentLoaded', () => {
+		    loadTools();
+		});
 	</script>
 </body>
 </html>

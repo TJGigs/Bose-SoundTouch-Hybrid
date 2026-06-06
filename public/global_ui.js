@@ -39,11 +39,12 @@ async function checkForUpdates() {
     }
 }
 
-const boseMassBannerHTML = `
+// --- UNIFIED MASS HEALTH MODAL HTML ---
+const maHealthBannerHTML = `
 <div id="mass-error-banner">
     <div class="banner-header">
-        <span class="banner-title">?? Music Assistant Error</span>
-        <button class="banner-close" onclick="dismissMassBanner()">&times;</button>
+        <span class="banner-title">🚨 Music Assistant Error</span>
+        <button class="banner-close" onclick="dismissHealthModal()">&times;</button>
     </div>
     <div class="banner-body">
         Music Assistant reported a playback failure. How to fix it:
@@ -53,8 +54,8 @@ const boseMassBannerHTML = `
                 No restart needed. <strong>Dismiss</strong> this message. It will clear on next successful playback.
             </li>
             <li>
-                <strong>Dropped DLNA Socket:</strong><br>
-                The speaker connection dropped. Try a quick <strong>Force Reconnect</strong> first.
+                <strong>Dropped DLNA/AirPlay Socket:</strong><br>
+                The speaker connection dropped. Try a quick <strong>Reload DLNA & AirPlay</strong> first.
             </li>
             <li>
                 <strong>Server Locked Up:</strong><br>
@@ -63,21 +64,91 @@ const boseMassBannerHTML = `
         </ul>
     </div>
     <div class="banner-actions">
-        <button class="btn-dismiss" onclick="dismissMassBanner()">Dismiss</button>
-        <button class="btn-reconnect" onclick="triggerAggressiveReconnect()">?? Force Reconnect</button>
-        <button class="btn-restart" onclick="restartMassFromBanner(this)">Restart Service</button>
+        <button class="btn-dismiss" style="background: #2ecc71; color: #000; font-weight: bold; border: none;" onclick="dismissHealthModal()">✅ Dismiss</button>
+        <button class="btn-reconnect" onclick="executeGlobalRecovery(this)">🚨 Reload DLNA & AirPlay</button>
+        <button class="btn-restart" onclick="executeGlobalRestart(this)">Restart Service</button>
     </div>
 </div>
 `;
 
+// --- UNIFIED RECOVERY LOGIC ---
+async function executeGlobalRecovery(btn) {
+    const orig = btn.innerText;
+    btn.innerText = "Reloading...";
+    btn.disabled = true;
+
+    try {
+        // Aggressively Reload DLNA
+        await fetch('/api/admin/rescan_ma', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ aggressive: true, provider: 'dlna' })
+        });
+        
+        // Aggressively Reload AirPlay
+        await fetch('/api/admin/rescan_ma', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ aggressive: true, provider: 'airplay' })
+        });
+
+        await fetch('/api/health/reset', { method: 'POST' }); 
+        btn.innerText = "✅ Sent";
+        setTimeout(() => { dismissHealthModal(); }, 1500);
+
+    } catch (e) {
+        btn.innerText = "❌ Error";
+        setTimeout(() => { btn.innerText = orig; btn.disabled = false; }, 3000);
+    }
+}
+
+// Global hook to restart the docker container
+async function executeGlobalRestart(btn) {
+    if (!confirm("Are you sure you want to completely restart the Music Assistant container?")) return;
+    const orig = btn.innerText;
+    btn.innerText = "Restarting...";
+    btn.disabled = true;
+    window.isMaRestartingProcess = true; // Lock the UI loops
+
+    try {
+        await fetch('/api/admin/restart_ma', { method: 'POST' });
+        await fetch('/api/health/reset', { method: 'POST' }); 
+        
+        btn.innerText = "✅ Sent";
+        setTimeout(() => { 
+            dismissHealthModal(); 
+            window.isMaRestartingProcess = false; // Unlock after command clears
+        }, 1500);
+    } catch (e) {
+        btn.innerText = "❌ Error";
+        setTimeout(() => { 
+            btn.innerText = orig; 
+            btn.disabled = false; 
+            window.isMaRestartingProcess = false; 
+        }, 3000);
+    }
+}
+
+function dismissHealthModal() {
+    const banner = document.getElementById('mass-error-banner');
+    if (banner) {
+        banner.style.display = 'none';
+        banner.dataset.dismissed = "true";
+        banner.style.transform = ''; banner.style.left = ''; banner.style.top = '';
+    }
+    
+    // Tell the backend we are ignoring the error so it stops bugging us
+    fetch('/api/health/reset', { method: 'POST' }).catch(() => console.log("Health reset suppressed")); 
+}
+
 // Inject the banner HTML into the DOM as soon as the page loads
 document.addEventListener("DOMContentLoaded", () => {
-    document.body.insertAdjacentHTML('afterbegin', boseMassBannerHTML);
-	document.body.insertAdjacentHTML('afterbegin', updateBannerHTML);
+    // BUG FIX: Changed from boseMassBannerHTML to the correct maHealthBannerHTML
+    document.body.insertAdjacentHTML('afterbegin', maHealthBannerHTML); 
+    document.body.insertAdjacentHTML('afterbegin', updateBannerHTML);
     makeBannerDraggable();
     checkForUpdates();
 });
-
 
 window.isMaRestartingProcess = false;
 
@@ -86,7 +157,6 @@ window.isMaRestartingProcess = false;
 setInterval(async () => {
     // STEP 1: Safety Check
     // If a restart or reconnect process is ALREADY happening, skip this check.
-    // We don't want to spam the server while it is actively trying to recover.
     if (window.isMaRestartingProcess) return;
     
     try {
@@ -99,50 +169,17 @@ setInterval(async () => {
         // STEP 3: Handle Unhealthy State (Connection Lost)
         if (h && h.healthy === false) {
             
-            // only proceed if the banner exists on the page, isn't already visible,
-            // and hasn't been manually dismissed by the user for this specific error instance.
+            // Because the backend gatekeeper now intercepts auto-restarts silently,
+            // if this returns false, it means the user WANTS to see the manual banner!
             if (banner && banner.style.display !== 'flex' && !banner.dataset.dismissed) {
-                
-                // --- NEW FEATURE: AUTO-RECOVERY INJECTION ---
-                // Before showing the error banner, check if the user enabled the "Auto-Reload" preference.
-                try {
-                    const prefRes = await fetch('/api/admin/settings');
-                    const prefs = await prefRes.json();
-                    
-                    // 'autoRestartMass' is the backend variable tied to our new "Auto-Reload" checkbox.
-                    if (prefs.autoRestartMass) {
-                        console.log("[UI] Auto-Recovery triggered via user preference.");
-                        
-                        // Mark the banner as temporarily "dismissed" so this loop doesn't spam trigger
-                        // while the auto-recovery is running.
-                        banner.dataset.dismissed = "true";
-                        
-                        // Trigger the aggressive reconnect silently (passing true for 'isAuto')
-                        // This function will automatically pause this health loop, and if it fails, 
-                        // it will force the banner to pop open on its own.
-                        triggerAggressiveReconnect(true);
-                        
-                        // EXIT the interval early! don't show the manual banner right now.
-                        return; 
-                    }
-                } catch (prefErr) {
-                    // If fetching preferences fails, quietly ignore it and fall through to show the banner.
-                    console.warn("[UI] Failed to check auto-recovery preference, falling back to manual banner.");
-                }
-                // --- END NEW FEATURE ---
-                
-                // ORIGINAL BEHAVIOR: Show the manual error banner if auto-recovery is OFF or failed to trigger.
                 banner.style.display = 'flex';
             }
             
         } else {
             // STEP 4: Handle Healthy State (Recovery Successful)
-            // If the server reports healthy (true), make sure the banner is hidden.
             if (banner) {
                 banner.style.display = 'none';
-                
-                // Reset the dismissed tracker so the banner can appear again if the server breaks in the future.
-                banner.dataset.dismissed = "";
+                banner.dataset.dismissed = ""; // Reset for next time
             }
         }
     } catch(e) {
@@ -175,40 +212,6 @@ function makeBannerDraggable() {
     function elementDrag(e) { e.preventDefault(); pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY; pos3 = e.clientX; pos4 = e.clientY; banner.style.top = (banner.offsetTop - pos2) + "px"; banner.style.left = (banner.offsetLeft - pos1) + "px"; }
     function elementTouchDrag(e) { const touch = e.touches[0]; pos1 = pos3 - touch.clientX; pos2 = pos4 - touch.clientY; pos3 = touch.clientX; pos4 = touch.clientY; banner.style.top = (banner.offsetTop - pos2) + "px"; banner.style.left = (banner.offsetLeft - pos1) + "px"; }
     function closeDragElement() { document.onmouseup = null; document.onmousemove = null; document.ontouchend = null; document.ontouchmove = null; header.style.cursor = 'grab'; }
-}
-
-async function dismissMassBanner() {
-    const banner = document.getElementById('mass-error-banner');
-    if(banner) {
-        banner.style.display = 'none'; banner.dataset.dismissed = "true";
-        banner.style.transform = ''; banner.style.left = ''; banner.style.top = '';
-    }
-    try { await fetch('/api/health/reset', { method: 'POST' }); } catch (e) { }
-}
-
-async function restartMassFromBanner(btn) {
-    btn.innerText = "Restarting... (Wait 60s)"; btn.disabled = true; window.isMaRestartingProcess = true;
-    await fetch('/api/admin/restart_ma', { method: 'POST' });
-    dismissMassBanner();
-    setTimeout(() => { btn.innerText = "Restart Service"; btn.disabled = false; window.isMaRestartingProcess = false; }, 60000); 
-}
-
-async function triggerAggressiveReconnect() {
-    const btn = document.querySelector('#mass-error-banner .btn-reconnect');
-    if(btn) { btn.innerText = "? Reconnecting..."; btn.disabled = true; }
-
-    try {
-        const res = await fetch('/api/admin/reconnect', { method: 'POST' }); 
-        if (res.ok) {
-            dismissMassBanner();
-        } else {
-            alert("? Socket reconnect failed. You may need to use the full Restart Service option.");
-        }
-    } catch (e) {
-        console.error("[UI] Reconnect error:", e);
-    } finally {
-        if(btn) { btn.innerText = "?? Force Reconnect"; btn.disabled = false; }
-    }
 }
 
 // --- GLOBAL SYSTEM ACTIONS ---
@@ -291,6 +294,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('pref_autoRestart').checked = prefs.autoRestartMass;
         document.getElementById('pref_autoSync').checked = prefs.autoSyncVolume;
         document.getElementById('pref_autoSort').checked = prefs.autoSortSpeakers;
+        
+        // Load the new bypass toggle
+        const bypassToggle = document.getElementById('pref_bypassCloudEmulation');
+        if (bypassToggle) bypassToggle.checked = prefs.bypassCloudEmulation;
+        
     } catch(e) { 
         console.error("[UI] Failed to load preferences", e); 
     }
@@ -303,14 +311,19 @@ async function savePreferences() {
         autoSyncVolume: document.getElementById('pref_autoSync').checked,
         autoSortSpeakers: document.getElementById('pref_autoSort').checked
     };
+    
+    // Save the new bypass toggle
+    const bypassToggle = document.getElementById('pref_bypassCloudEmulation');
+    if (bypassToggle) payload.bypassCloudEmulation = bypassToggle.checked;
+    
     try {
         const res = await fetch('/api/admin/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        if (res.ok) alert("? Preferences saved successfully.");
+        if (res.ok) alert("✅ Preferences saved successfully.");
     } catch(e) { 
-        alert("? Failed to save preferences."); 
+        alert("❌ Failed to save preferences."); 
     }
 }

@@ -117,11 +117,11 @@ function generateSourceProviders(reqIp) {
     return xml;
 }
 
-function generateAccountXml(reqIp, accountId, deviceId, serialNumber, deviceName) {
-    const time = getTimestamp();
-    const updateTime = Math.floor(Date.now() / 1000);
 
+function generatePresetsXml() {
+    const time = getTimestamp();
     let presetsXml = '<presets>';
+    
     for (let i = 1; i <= 6; i++) {
         const streamUrl = `http://${IP}:${PORT}/preset/${i}.mp3`;
         presetsXml += `
@@ -140,6 +140,14 @@ function generateAccountXml(reqIp, accountId, deviceId, serialNumber, deviceName
         </preset>`;
     }
     presetsXml += '</presets>';
+    return presetsXml;
+}
+
+function generateAccountXml(reqIp, accountId, deviceId, serialNumber, deviceName) {
+    const time = getTimestamp();
+    const updateTime = Math.floor(Date.now() / 1000);
+
+	const presetsXml = generatePresetsXml();
 
     const sourcesXml = `
     <sources>
@@ -259,6 +267,54 @@ router.get('/streaming/account/:id/full', async (req, res) => {
     res.send(generateAccountXml(reqIp, accountId, identity.deviceId, identity.serialNumber, identity.name)); 
 });
 
+router.get('/streaming/account/:id/device/:deviceId/presets', (req, res) => {
+    const reqIp = getIp(req);
+    if (isDebug()) console.log(`[Bose Cloud] 🔄 Standby Preset Sync requested by ${reqIp}. Delivering Hybrid Presets...`);
+    res.send(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${generatePresetsXml()}`);
+});
+
+// ============================================================================
+// ST10 STEREO PAIRING GROUP HIJACK
+// ============================================================================
+const stereoPairsFile = path.join(process.cwd(), 'config', 'stereo_pairs.json');
+
+router.get('/streaming/account/:id/device/:deviceId/group/', async (req, res) => {
+    const reqIp = getIp(req);
+
+    if (fs.existsSync(stereoPairsFile)) {
+        const pairs = JSON.parse(fs.readFileSync(stereoPairsFile, 'utf8'));
+        const activePair = pairs.find(p => p.leftIp === reqIp || p.rightIp === reqIp);
+
+        if (activePair) {
+            if (isDebug()) console.log(`[Bose Cloud] 👯 ST10 Stereo Sync requested by ${reqIp}. Compiling GroupService.xml for: ${activePair.name}`);
+
+            const isMaster = activePair.leftIp === reqIp;
+            const role = isMaster ? 'MASTER' : 'SLAVE';
+
+            const leftIdentity = await getSpeakerIdentity(activePair.leftIp);
+            const rightIdentity = await getSpeakerIdentity(activePair.rightIp);
+
+            const groupXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<group id="${leftIdentity.deviceId}">
+    <name>${activePair.name}</name>
+    <master>${leftIdentity.deviceId}</master>
+    <role>${role}</role>
+    <status>GROUP_OK</status>
+    <senderIPAddress>${activePair.leftIp}</senderIPAddress>
+    <senderIsMaster>true</senderIsMaster>
+    <member ipaddress="${activePair.leftIp}" macAddress="${leftIdentity.deviceId}">${leftIdentity.deviceId}</member>
+    <member ipaddress="${activePair.rightIp}" macAddress="${rightIdentity.deviceId}">${rightIdentity.deviceId}</member>
+</group>`;
+            
+            return res.send(groupXml);
+        }
+    }
+
+    res.send('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><group/>');
+});
+
+
+
 // ============================================================================
 // NOISY BOSE TELEMETRY TRAPS (Silently dropped)
 // ============================================================================
@@ -272,8 +328,6 @@ router.get(/^\/updates.*/, (req, res) => res.status(404).send("Not Found"));
 router.delete('/streaming/account/:id/device/:deviceId', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
 router.post(['/streaming/account/:id/device', '/streaming/account/:id/device/'], (req, res) => res.status(201).send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
 router.put('/streaming/account/:id/device/:deviceId', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
-router.get('/streaming/account/:id/device/:deviceId/group/', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><group/>'));
-router.get('/streaming/account/:id/device/:deviceId/presets', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><presets/>'));
 router.get('/streaming/software/update/account/:id', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><software_update><softwareUpdateLocation></softwareUpdateLocation></software_update>'));
 router.get('/streaming/account/:id/provider_settings', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" ?><providerSettings><status>success</status></providerSettings>'));
 router.get('/streaming/device/:id/streaming_token', (req, res) => res.status(404).send('Not Found'));

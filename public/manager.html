@@ -379,8 +379,15 @@ function buildSearchMenu() {
               
               const finalLabel = `${d.name}${icon}`;
               
-              // --- THE FILTERS ---
-              const playDisabledAttr = (isOffline || isMissingFromMass) ? `disabled ${colorClass}` : '';
+			// --- THE FILTERS ---
+              const isStereoRight = (d.stereoRole === 'RIGHT');
+              let playDisabledAttr = '';
+              if (isOffline || isMissingFromMass) {
+                  playDisabledAttr = `disabled ${colorClass}`;
+              } else if (isStereoRight) {
+                  playDisabledAttr = `disabled style="color: var(--text-secondary); font-style: italic;"`; 
+              }
+
               const playValue = p ? p.id : ''; 
               const editStyleAttr = colorClass ? `${colorClass}` : '';
               
@@ -389,7 +396,7 @@ function buildSearchMenu() {
                   htmlIp: `<option value="${d.ip}" ${editStyleAttr}>${finalLabel}</option>`, 
                   isPlaying: isPlaying,
                   id: playValue,
-                  isPlayable: (!isOffline && !isMissingFromMass)
+                  isPlayable: (!isOffline && !isMissingFromMass && !isStereoRight)
               };
           });
 
