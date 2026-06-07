@@ -242,7 +242,15 @@ if (!isReady) {
     // ============================================================================
     async function checkGitHubForUpdates() {
         try {
-            const githubRes = await axios.get('https://api.github.com/repos/TJGigs/Bose-SoundTouch-Hybrid-2026/releases/latest', { headers: { 'User-Agent': 'Bose-Hybrid-App' }});
+           
+		   const githubRes = await axios.get(`https://api.github.com/repos/TJGigs/Bose-SoundTouch-Hybrid-2026/releases/latest?t=${Date.now()}`, { 
+                headers: { 
+                    'User-Agent': 'Bose-Hybrid-App',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            });
+            
             const latestVersion = githubRes.data.tag_name;
             if (latestVersion !== CURRENT_VERSION) {
                 console.log(`\n[Boot] 🚀 SOUNDTOUCH HYBRID UPDATE AVAILABLE! Current: ${CURRENT_VERSION} | Latest: ${latestVersion}\n`);
