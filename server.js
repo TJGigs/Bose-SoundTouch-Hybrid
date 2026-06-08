@@ -1,7 +1,7 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.5";
+const CURRENT_VERSION = "v3.5.1";
 const ENV_SCHEMA_VERSION = "v3.5"; 
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 const express = require('express');
