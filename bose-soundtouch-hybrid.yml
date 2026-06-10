@@ -71,5 +71,4 @@ services:
       ################################################################################
       
       # - /your/actual/absolute/path/here:/app/config
- 
- restart: unless-stopped
+    restart: unless-stopped
