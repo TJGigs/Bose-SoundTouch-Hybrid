@@ -71,9 +71,4 @@ services:
       ################################################################################
       
       # - /your/actual/absolute/path/here:/app/config
-<<<<<<< Updated upstream
     restart: unless-stopped
-=======
- 
-    restart: unless-stopped
->>>>>>> Stashed changes
