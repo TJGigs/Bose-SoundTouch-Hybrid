@@ -1,5 +1,5 @@
 # ==============================================================================
-# BOSE SOUNDTOUCH HYBRID 2026 V3.5.3
+# BOSE SOUNDTOUCH HYBRID 2026 V3.5.5
 # ==============================================================================
 # --- VERSION TAGGING ---
 # Use the word 'latest' on the image line below to always pull the newest 
@@ -32,7 +32,7 @@
 
 services:
   bose-hybrid:
-    image: ghcr.io/tjgigs/bose-soundtouch-hybrid-2026:v3.5.3
+    image: ghcr.io/tjgigs/bose-soundtouch-hybrid-2026:v3.5.5
     
     container_name: bose-soundtouch-hybrid
     network_mode: "host"
@@ -71,9 +71,5 @@ services:
       ################################################################################
       
       # - /your/actual/absolute/path/here:/app/config
-<<<<<<< Updated upstream
-    restart: unless-stopped
-=======
  
     restart: unless-stopped
->>>>>>> Stashed changes

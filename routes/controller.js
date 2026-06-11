@@ -284,11 +284,13 @@ router.post('/volume', async(req, res) => {
 
 router.post('/balance', async(req, res) => {
     const { ip, value } = req.body;
-    console.log(`[Control] ⚖️ L/R Balance adjusted for ${ip} to value: ${value}`);
+    const normalizedValue = Math.max(-50, Math.min(50, parseInt(value, 10) || 0));
+    console.log(`[Control] ⚖️ L/R Balance adjusted for ${ip} to value: ${normalizedValue}`);
     
     try {
-        // The exact nested XML structure Bose expects for DSP targets
-        const xmlPayload = `<balance><targetbalance>${value}</targetbalance></balance>`;
+        // Public SoundTouch libraries and the Bose WAPI examples use the XML envelope:
+        // <balance><targetBalance>...</targetBalance></balance>
+        const xmlPayload = `<balance><targetBalance>${normalizedValue}</targetBalance></balance>`;
         
         await sendBoseXml(ip, 'balance', xmlPayload);
         res.send({ success: true });

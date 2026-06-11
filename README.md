@@ -1,4 +1,4 @@
-# V3.5.3 Quick Notes: 
+# V3.5.5 Quick Notes: 
 *	🔊 Addresses all known bugs and Several Enhancements
 *	🔊 Includes a complete revamp of the Bose cloud simulation inject sequence. Now completely automated (no USB Stick)
 *	🔊 Auto config options and additional system tools on the Tools page to control app behavior and trouble shooting
@@ -15,7 +15,7 @@
 
 Install: https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/edit/main/README.md#installations-via-docker-compose
 
-# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.5.3
+# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.5.5
 
 **A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch 10, 20, 30, Wave Speakers and Wireless Link. Physical Presets Included!**
 

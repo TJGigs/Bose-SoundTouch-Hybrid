@@ -117,6 +117,19 @@ function generateSourceProviders(reqIp) {
     return xml;
 }
 
+function generateProviderSettingsXml(reqIp) {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<providerSettings>
+    <provider id="11">
+        <name>LOCAL_INTERNET_RADIO</name>
+        <status>READY</status>
+    </provider>
+</providerSettings>`;
+    
+    // WRITE TO FILE
+    fs.writeFileSync(path.join(LOG_DIR, `${reqIp}_provider_settings.xml`), xml);
+    return xml;
+}
 
 function generatePresetsXml() {
     const time = getTimestamp();
@@ -246,18 +259,22 @@ router.get('/bmx/registry/v1/services', (req, res) => {
 // 3. Source Providers (Internet Radio Local Bypass)
 router.get('/streaming/sourceproviders', (req, res) => {
     const reqIp = getIp(req);
+	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
+    //const reqIp = req.query.ip || getIp(req);
     if (handshakeTracker[reqIp]) handshakeTracker[reqIp].sourceProviders = true;
-    if (isDebug()) console.log(`[Bose Cloud] 📋 Delivered SourceProviders to ${reqIp}`);
+    console.log(`[Bose Cloud] 📋 Delivered SourceProviders to ${reqIp}`);
     res.send(generateSourceProviders(reqIp));
 });
 
 // 4. Full Account Profile (The Preset Injector)
 router.get('/streaming/account/:id/full', async (req, res) => {
     const reqIp = getIp(req);
+	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
+    //const reqIp = req.query.ip || getIp(req);
     const accountId = req.params.id;
     
     if (handshakeTracker[reqIp]) handshakeTracker[reqIp].presets = true;
-    if (isDebug()) console.log(`[Bose Cloud] 📥 Account Profile requested by ${reqIp}. Fetching identity...`);
+    console.log(`[Bose Cloud] 📥 Account Profile requested by ${reqIp}. Fetching identity...`);
     
     const identity = await getSpeakerIdentity(reqIp);
     if (identity.deviceId === "UNKNOWN") {
@@ -269,8 +286,18 @@ router.get('/streaming/account/:id/full', async (req, res) => {
 
 router.get('/streaming/account/:id/device/:deviceId/presets', (req, res) => {
     const reqIp = getIp(req);
+	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
+    //const reqIp = req.query.ip || getIp(req);
     console.log(`[Bose Cloud] 🔄 Standby Preset Sync requested by ${reqIp}. Delivering Hybrid Presets...`);
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${generatePresetsXml()}`);
+});
+
+router.get('/streaming/account/:id/provider_settings', (req, res) => {
+    const reqIp = getIp(req);
+	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
+    //const reqIp = req.query.ip || getIp(req);
+    console.log(`[Bose Cloud] ⚙️ Provider Settings requested by ${reqIp}. Delivering valid settings...`);
+    res.send(generateProviderSettingsXml(reqIp));
 });
 
 // ============================================================================
@@ -279,8 +306,8 @@ router.get('/streaming/account/:id/device/:deviceId/presets', (req, res) => {
 const stereoPairsFile = path.join(process.cwd(), 'config', 'stereo_pairs.json');
 
 router.get('/streaming/account/:id/device/:deviceId/group/', async (req, res) => {
-    //const reqIp = getIp(req);
-	const reqIp = req.query.ip || getIp(req); //TESTING ONLY REMOVE BEFORE PROD
+    const reqIp = getIp(req);
+//	const reqIp = req.query.ip || getIp(req); //TESTING ONLY REMOVE BEFORE PROD
 
     if (fs.existsSync(stereoPairsFile)) {
         const pairs = JSON.parse(fs.readFileSync(stereoPairsFile, 'utf8'));
@@ -331,7 +358,6 @@ router.delete('/streaming/account/:id/device/:deviceId', (req, res) => res.send(
 router.post(['/streaming/account/:id/device', '/streaming/account/:id/device/'], (req, res) => res.status(201).send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
 router.put('/streaming/account/:id/device/:deviceId', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
 router.get('/streaming/software/update/account/:id', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><software_update><softwareUpdateLocation></softwareUpdateLocation></software_update>'));
-router.get('/streaming/account/:id/provider_settings', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" ?><providerSettings><status>success</status></providerSettings>'));
 router.get('/streaming/device/:id/streaming_token', (req, res) => res.status(404).send('Not Found'));
 router.use('/radio', (req, res) => res.status(200).send("OK"));
 
