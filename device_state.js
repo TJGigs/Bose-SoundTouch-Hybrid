@@ -306,7 +306,7 @@ async function initDevice(device) {
     let activeWs = null; // Stores the socket so the watchdog can kill it
 
     // 🌟 THE PERMANENT HTTP WATCHDOG (Online & Offline) 🌟
-    // A lightweight pulse running in both directions, 
+    // A lightweight pulse running in both directions, exactly as you designed.
     setInterval(async () => {
         try {
             await axios.get(`http://${device.ip}:8090/info`, { timeout: 2500 });

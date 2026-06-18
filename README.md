@@ -123,7 +123,7 @@ Review **[SoundTouch Hybrid 2026 Technical Documentation](https://github.com/TJG
 ***You must verify your SoundTouch speakers and streaming providers are fully working inside of Music Assistant prior to using the SoundTouch Hybrid Application.***
 
 ### <img src="public/images/ma_icon.png" width="18"> Setting up Music Assistant (MASS)
-Install Music Assistant (MASS):  ***version 2.9.1 or later is required***
+Install Music Assistant (MASS):  ***version 2.8.5 or later is required***
 
 1. **For installation instructions and troubleshooting, use Music Assistant Help:** This includes help for setup, providers, speakers testing, playback issues, etc.
    * See [MASS GitHub](https://github.com/music-assistant/server) 

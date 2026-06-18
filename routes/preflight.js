@@ -206,7 +206,7 @@ function showLegacyUSBWarning(ip) {
 async function waitForJanitorReboot(ip) {
     console.log(`   ├─ ⏳ Allowing 35 seconds for ${ip} network stack to shut down...`);
     await new Promise(r => setTimeout(r, 35000)); // 🌟 THE FIX: Hard wait for hardware to drop
-    
+
     let online = false, attempts = 0;
     process.stdout.write(`   ├─ ⏳ Polling ${ip} until network reconnects `);
     while (!online && attempts < 24) {
@@ -221,6 +221,24 @@ async function waitForJanitorReboot(ip) {
         }
     }
     return online;
+}
+
+// SHARED PRESET HEALTH CHECK
+// Returns false if the speaker has no presets stored in NVRAM.
+// On fetch error, returns true (assume ok — don't false-positive a reboot).
+// Used by both runSetup (preflight) and runSpeakerAudit (scheduler).
+async function speakerHasPresets(ip) {
+    try {
+        const res = await axios.get(`http://${ip}:8090/presets`, { timeout: 3000 });
+        const parser = new xml2js.Parser({ explicitArray: false });
+        const data = await parser.parseStringPromise(res.data);
+        const presets = data.presets && data.presets.preset;
+        if (!presets) return false;
+        if (Array.isArray(presets)) return presets.length > 0;
+        return Object.keys(presets).length > 0;
+    } catch (e) {
+        return true;
+    }
 }
 
 /**
@@ -289,18 +307,25 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
             const isUrlConfigured = currentMargeUrl.includes(`${APP_IP}:${APP_PORT}`);
             const hasMargeId = currentMargeId !== "" && currentMargeId !== "0000000" && currentMargeId !== "UNKNOWN_MAC";
             const naturallyNeedsSetup = !isUrlConfigured || !hasMargeId;
-            
+
             const isInjectTarget = forceInjectTarget === 'all' || forceInjectTarget === speaker.ip;
             const isRebootTarget = forceRebootTarget === 'all' || forceRebootTarget === speaker.ip;
 
+            // Only fetch presets when the speaker would otherwise pass as healthy (Route A).
+            // If injection is already required (Route B), the post-reboot cloud handshake
+            // delivers presets anyway — no need to check and no benefit to a separate reboot.
+            const missingPresets = (!naturallyNeedsSetup && !isInjectTarget)
+                ? !(await speakerHasPresets(speaker.ip))
+                : false;
+
             // Decision Matrix
             const needsInjection = naturallyNeedsSetup || isInjectTarget;
-            const needsReboot = needsInjection || isRebootTarget;
+            const needsReboot = needsInjection || isRebootTarget || missingPresets;
 
             // Route A: Healthy & Ignored
             if (!needsReboot) {
                 console.log(`   └─ ✅ Fully configured and healthy (MargeID: ${currentMargeId}).`);
-                continue; 
+                continue;
             }
 
             // Route B: Requires NVRAM Injection (Implicitly includes a hardware reboot)
@@ -348,8 +373,10 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
                 rebootedIps.push(speaker.ip);
             
             // Route C: Requires ONLY a Soft-Reboot (Skipped if Route B executed)
-            } else if (isRebootTarget) {
-                console.log(`   └─ 🔄 FORCE REBOOT SEQUENCE: Soft-rebooting ${speaker.name}...`);
+            } else if (isRebootTarget || missingPresets) {
+                if (missingPresets) console.log(`   ├─ ⚠️ Action Required: Speaker is configured but has no presets.`);
+                const label = isRebootTarget ? 'FORCE REBOOT SEQUENCE' : 'PRESET RECOVERY';
+                console.log(`   └─ 🔄 ${label}: Soft-rebooting ${speaker.name}...`);
                 await injectPort17000Commands(speaker.ip, [`sys reboot`]);
                 rebootedIps.push(speaker.ip);
             }
@@ -362,4 +389,4 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
     return { success: true, rebootedIps };
 }
 
-module.exports = { runSetup, injectPort17000Commands };
+module.exports = { runSetup, injectPort17000Commands, speakerHasPresets };

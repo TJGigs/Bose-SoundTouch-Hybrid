@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const xml2js = require('xml2js');
-const { injectPort17000Commands } = require('./preflight');
+const { injectPort17000Commands, speakerHasPresets } = require('./preflight');
 const DEFAULT_ICON = "";
 
 const LOG_DIR = path.resolve(process.cwd(), "config", "logs");
@@ -198,18 +198,13 @@ async function runSpeakerAudit(hour = null, minute = null) {
     
     const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
     const speakers = fs.existsSync(speakersPath) ? JSON.parse(fs.readFileSync(speakersPath, 'utf8')) : [];
-    const parser = new xml2js.Parser({ explicitArray: false });
 
     let rebootOccurred = false;
 
     for (const speaker of speakers) {
         try {
             console.log(`[Scheduler] 🔍 Checking presets for ${speaker.name} (${speaker.ip})...`);
-            const res = await axios.get(`http://${speaker.ip}:8090/presets`, { timeout: 3000 });
-            const data = await parser.parseStringPromise(res.data);
-            const presets = data.presets && data.presets.preset;
-            
-            if (!presets || (Array.isArray(presets) && presets.length === 0) || Object.keys(presets).length === 0) {
+            if (!(await speakerHasPresets(speaker.ip))) {
                 console.log(`   └─ ⚠️ Empty presets detected! Initiating Smart Reboot...`);
                 
                 // 1. SMART SHUTDOWN: Check if it's awake before rebooting
