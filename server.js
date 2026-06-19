@@ -1,7 +1,7 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.6.4";
+const CURRENT_VERSION = "v3.6.5";
 const ENV_SCHEMA_VERSION = "v3.5"; 
 const minReq = [2, 9, 1]; //MASS VERSION
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };

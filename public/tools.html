@@ -1452,7 +1452,7 @@ async function saveScheduledPlays(silent = false) {
 		}
 
 		async function triggerManualAudit() {
-		    if (!confirm("Execute a manual Speaker Preset Audit now? Any speakers missing their presets will be rebooted."))
+		    if (!confirm("Execute a manual Speaker Preset Audit now? Any speakers missing or with non-Hybrid presets will have their presets pushed directly — no reboot required."))
 		        return;
 
 		    try {

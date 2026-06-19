@@ -4,6 +4,7 @@ const path = require('path');
 const axios = require('axios');
 const xml2js = require('xml2js');
 const net = require('net');
+const { pushPresetsToSpeaker, speakerHasHybridPresets } = require('./utils');
 // ⚠️ WARNING: SET THIS TO false BEFORE GITHUB RELEASE!
 const FORCE_TEST_JANITOR = false;
 
@@ -223,23 +224,6 @@ async function waitForJanitorReboot(ip) {
     return online;
 }
 
-// SHARED PRESET HEALTH CHECK
-// Returns false if the speaker has no presets stored in NVRAM.
-// On fetch error, returns true (assume ok — don't false-positive a reboot).
-// Used by both runSetup (preflight) and runSpeakerAudit (scheduler).
-async function speakerHasPresets(ip) {
-    try {
-        const res = await axios.get(`http://${ip}:8090/presets`, { timeout: 3000 });
-        const parser = new xml2js.Parser({ explicitArray: false });
-        const data = await parser.parseStringPromise(res.data);
-        const presets = data.presets && data.presets.preset;
-        if (!presets) return false;
-        if (Array.isArray(presets)) return presets.length > 0;
-        return Object.keys(presets).length > 0;
-    } catch (e) {
-        return true;
-    }
-}
 
 /**
  * CORE BOOTLOADER ENGINE: Evaluates fleet state, processes NVRAM injections, and executes targeted reboots.
@@ -311,19 +295,20 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
             const isInjectTarget = forceInjectTarget === 'all' || forceInjectTarget === speaker.ip;
             const isRebootTarget = forceRebootTarget === 'all' || forceRebootTarget === speaker.ip;
 
-            // Only fetch presets when the speaker would otherwise pass as healthy (Route A).
-            // If injection is already required (Route B), the post-reboot cloud handshake
-            // delivers presets anyway — no need to check and no benefit to a separate reboot.
-            const missingPresets = (!naturallyNeedsSetup && !isInjectTarget)
-                ? !(await speakerHasPresets(speaker.ip))
+            // Only check presets when the speaker would otherwise pass as healthy.
+            // If injection is required (Route B), the post-reboot cloud handshake delivers
+            // presets anyway — checking here adds no value and a separate push would race the reboot.
+            // speakerHasHybridPresets covers both empty slots AND slots filled with non-Hybrid URLs.
+            const needsPresetPush = (!naturallyNeedsSetup && !isInjectTarget)
+                ? !(await speakerHasHybridPresets(speaker.ip))
                 : false;
 
             // Decision Matrix
             const needsInjection = naturallyNeedsSetup || isInjectTarget;
-            const needsReboot = needsInjection || isRebootTarget || missingPresets;
+            const needsReboot    = needsInjection || isRebootTarget;
 
             // Route A: Healthy & Ignored
-            if (!needsReboot) {
+            if (!needsReboot && !needsPresetPush) {
                 console.log(`   └─ ✅ Fully configured and healthy (MargeID: ${currentMargeId}).`);
                 continue;
             }
@@ -372,13 +357,20 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
                 await injectPort17000Commands(speaker.ip, [`sys reboot`]);
                 rebootedIps.push(speaker.ip);
             
-            // Route C: Requires ONLY a Soft-Reboot (Skipped if Route B executed)
-            } else if (isRebootTarget || missingPresets) {
-                if (missingPresets) console.log(`   ├─ ⚠️ Action Required: Speaker is configured but has no presets.`);
-                const label = isRebootTarget ? 'FORCE REBOOT SEQUENCE' : 'PRESET RECOVERY';
-                console.log(`   └─ 🔄 ${label}: Soft-rebooting ${speaker.name}...`);
+            // Route C: Force Reboot only (preset recovery no longer triggers a reboot)
+            } else if (isRebootTarget) {
+                console.log(`   └─ 🔄 FORCE REBOOT SEQUENCE: Soft-rebooting ${speaker.name}...`);
                 await injectPort17000Commands(speaker.ip, [`sys reboot`]);
                 rebootedIps.push(speaker.ip);
+            }
+
+            // Route D: Preset Push — non-destructive, no reboot required.
+            // Fires when cloud config (MargeURL/ID) is correct but presets are missing
+            // or pointing to non-Hybrid URLs. Skipped if Route B ran (cloud handshake covers it).
+            if (needsPresetPush && !needsInjection) {
+                console.log(`   ├─ ⚠️ Action Required: Presets missing or not pointing to Hybrid Bridge.`);
+                console.log(`   └─ 📋 Pushing Hybrid presets directly — no reboot required.`);
+                await pushPresetsToSpeaker(speaker.ip);
             }
 
         } catch (err) {
@@ -389,4 +381,4 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
     return { success: true, rebootedIps };
 }
 
-module.exports = { runSetup, injectPort17000Commands, speakerHasPresets };
+module.exports = { runSetup, injectPort17000Commands };

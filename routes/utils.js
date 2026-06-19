@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const xml2js = require('xml2js');
-const { injectPort17000Commands, speakerHasPresets } = require('./preflight');
 const DEFAULT_ICON = "";
 
 const LOG_DIR = path.resolve(process.cwd(), "config", "logs");
@@ -92,13 +91,52 @@ function getHybridPresetDefinitions() {
     return definitions;
 }
 
-// --- PRESET WATCHDOG: Direct WAPI Write (storePreset) ---
-// Writes all 6 Hybrid presets straight into the speaker's local NVRAM via the
-// undocumented but community-confirmed WAPI
-// /storePreset endpoint. Unlike runSpeakerAudit's reboot-based heal, this is
-// non-destructive — no reboot, no standby/wake cycle, no playback interruption.
-// Intended only for speakers flagged in settings.presetWatchdogSpeakers (Tools
-// page "Preset Refresh Watchdog" card) — most speakers never need this.
+// --- PRESET HEALTH CHECKS ---
+// speakerHasPresets: slot existence only (used by legacy callers and as a base check)
+// speakerHasHybridPresets: stricter — confirms slots contain LOCAL_INTERNET_RADIO URLs
+// pointing back to this bridge. Both return true on fetch error to avoid false-positive reboots.
+async function speakerHasPresets(ip) {
+    try {
+        const res = await axios.get(`http://${ip}:8090/presets`, { timeout: 3000 });
+        const parser = new xml2js.Parser({ explicitArray: false });
+        const data = await parser.parseStringPromise(res.data);
+        const presets = data.presets && data.presets.preset;
+        if (!presets) return false;
+        if (Array.isArray(presets)) return presets.length > 0;
+        return Object.keys(presets).length > 0;
+    } catch (e) {
+        return true;
+    }
+}
+
+async function speakerHasHybridPresets(ip) {
+    const APP_IP = process.env.APP_IP;
+    const APP_PORT = process.env.APP_PORT;
+    try {
+        const res = await axios.get(`http://${ip}:8090/presets`, { timeout: 3000 });
+        const parser = new xml2js.Parser({ explicitArray: false });
+        const data = await parser.parseStringPromise(res.data);
+        const presets = data.presets?.preset;
+        if (!presets) return false;
+        const arr = Array.isArray(presets) ? presets : [presets];
+        if (arr.length === 0) return false;
+        return arr.some(p =>
+            p.ContentItem?.$?.source === 'LOCAL_INTERNET_RADIO' &&
+            p.ContentItem?.$?.location?.includes(`${APP_IP}:${APP_PORT}/preset/`)
+        );
+    } catch (e) {
+        return true;
+    }
+}
+
+// --- PRESET PUSH: Direct WAPI Write (storePreset) ---
+// Universal non-destructive preset delivery path. Writes all 6 Hybrid presets
+// directly into the speaker's NVRAM via the /storePreset endpoint — no reboot,
+// no standby/wake cycle, no playback interruption. Called from:
+//   - Pre-Flight Route D (wrong or missing presets, cloud config already correct)
+//   - runSpeakerAudit (scheduled nightly audit)
+//   - Preset Watchdog Push mode (recurring interval)
+//   - Manual "Push Now" button (Tools page)
 async function pushPresetsToSpeaker(ip) {
     const definitions = getHybridPresetDefinitions();
     const nowSec = Math.floor(Date.now() / 1000);
@@ -199,48 +237,22 @@ async function runSpeakerAudit(hour = null, minute = null) {
     console.log(`\n=======================================================================`);
     console.log(`[Scheduler] 🕒 ${fmtScheduledTime(hour, minute)} Routine: Executing Speaker Preset Audit...`);
     console.log(`=======================================================================`);
-    
+
     const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
     const speakers = fs.existsSync(speakersPath) ? JSON.parse(fs.readFileSync(speakersPath, 'utf8')) : [];
-
-    let rebootOccurred = false;
 
     for (const speaker of speakers) {
         try {
             console.log(`[Scheduler] 🔍 Checking presets for ${speaker.name} (${speaker.ip})...`);
-            if (!(await speakerHasPresets(speaker.ip))) {
-                console.log(`   └─ ⚠️ Empty presets detected! Initiating Smart Reboot...`);
-                
-                // 1. SMART SHUTDOWN: Check if it's awake before rebooting
-                try {
-                    const statusRes = await axios.get(`http://${speaker.ip}:8090/now_playing`, { timeout: 2000 });
-                    if (!statusRes.data.includes('source="STANDBY"')) {
-                        console.log(`      └─ 💤 Clean shutdown: Routing POWER command for ${speaker.name}...`);
-                        const LOCAL_PORT = process.env.APP_PORT || 8080;
-                        await axios.post(`http://127.0.0.1:${LOCAL_PORT}/api/key`, { ip: speaker.ip, key: 'POWER' });
-                        
-                        // Give controller.js 1.5 seconds to finish clearing queues
-                        await new Promise(r => setTimeout(r, 1500));
-                    }
-                } catch (e) {
-                    console.log(`      └─ ⚠️ Could not verify power state. Proceeding anyway.`);
-                }
-
-                // 2. EXECUTE THE HARDWARE REBOOT
-                await injectPort17000Commands(speaker.ip, ['sys reboot']);
-                rebootOccurred = true;
-
+            if (!(await speakerHasHybridPresets(speaker.ip))) {
+                console.log(`   └─ ⚠️ Hybrid presets missing or stale — pushing directly (no reboot required).`);
+                await pushPresetsToSpeaker(speaker.ip);
             } else {
                 console.log(`   └─ ✅ Presets intact. Speaker is healthy.`);
             }
         } catch (e) {
             console.log(`   └─ ❌ Failed to reach ${speaker.name}: ${e.message}`);
         }
-    }
-
-    // 3. SMART RECOVERY: The 90-Second Music Assistant DLNA/AirPlay Reload
-    if (rebootOccurred) {
-        scheduleProviderReload('rebooted speakers');
     }
 
     console.log(`[Scheduler] ✅ Speaker Preset Audit Complete.\n`);
@@ -500,6 +512,8 @@ module.exports = {
     powerOffAllSpeakers,
     executeSmartShutdown,
     scheduleProviderReload,
+    speakerHasPresets,
+    speakerHasHybridPresets,
     getHybridPresetDefinitions,
     pushPresetsToSpeaker,
     appendWatchdogLog,
