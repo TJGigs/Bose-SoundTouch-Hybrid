@@ -1,10 +1,10 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.7";
+const CURRENT_VERSION = "v3.7.1";
 const ENV_SCHEMA_VERSION = "v3.5";
 const SETTINGS_SCHEMA_VERSION = "v3.7";
-const minReq = [2, 9, 3]; //MASS VERSION
+const minReq = [2, 9, 4]; //MASS VERSION
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 const express = require('express');
 const fs = require('fs');
@@ -297,19 +297,30 @@ if (!isReady) {
 // ============================================================================
     // PHASE 7: HARDWARE BOOT SEQUENCE
     // ============================================================================
+    function parseSemver(tag) {
+        return (tag || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
+    }
+    function isNewerThan(a, b) {
+        const [aMaj, aMin, aPatch = 0] = parseSemver(a);
+        const [bMaj, bMin, bPatch = 0] = parseSemver(b);
+        if (aMaj !== bMaj) return aMaj > bMaj;
+        if (aMin !== bMin) return aMin > bMin;
+        return aPatch > bPatch;
+    }
+
     async function checkGitHubForUpdates() {
         try {
-           
-		   const githubRes = await axios.get(`https://api.github.com/repos/TJGigs/Bose-SoundTouch-Hybrid-2026/releases/latest?t=${Date.now()}`, { 
-                headers: { 
+
+		   const githubRes = await axios.get(`https://api.github.com/repos/TJGigs/Bose-SoundTouch-Hybrid-2026/releases/latest?t=${Date.now()}`, {
+                headers: {
                     'User-Agent': 'Bose-Hybrid-App',
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache'
                 }
             });
-            
+
             const latestVersion = githubRes.data.tag_name;
-            if (latestVersion !== CURRENT_VERSION) {
+            if (isNewerThan(latestVersion, CURRENT_VERSION)) {
                 console.log(`\n[Boot] 🚀 SOUNDTOUCH HYBRID UPDATE AVAILABLE! Current: ${CURRENT_VERSION} | Latest: ${latestVersion}\n`);
                 UPDATE_CACHED_DATA = { updateAvailable: true, current: CURRENT_VERSION, latest: latestVersion, url: githubRes.data.html_url };
             } else {

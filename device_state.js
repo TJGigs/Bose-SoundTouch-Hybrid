@@ -657,9 +657,12 @@ async function processSettledState(ip) {
                 mass.setPresetMemory(ip, 0);
                 delete LAST_METADATA[ip];
                 if (LAST_VALID_STATE[ip] && LAST_VALID_STATE[ip].isStandby === false) {
-                    // The 1-2 Punch: Stop the active stream, then clear MA queue completely 
+                    // The 1-2 Punch: Stop the active stream, then clear MA queue completely
                     mass.stop(ip).catch(() => {});
                     mass.clearQueue(ip).catch(() => {});
+                    // Sync final volume to MASS so it doesn't override with a stale value
+                    // on the next power-on when MA "Volume Control" is enabled.
+                    mass.syncVolumeToMass(ip, NATIVE_CACHE[ip].volume).catch(() => {});
                 }
             }
 

@@ -650,7 +650,11 @@ router.get('/manager/library', (req, res) => {
 });
 
 router.post('/manager/save', (req, res) => {
-    const { uuid, name, uri, image, type, slot, settings, subtitle, speakerIp, provider } = req.body;
+    const { uuid, name, image, type, slot, settings, subtitle, speakerIp, provider } = req.body;
+    // Strip provider instance IDs at save time so library.json never stores stale instance
+    // references (e.g. spotify--UgwRanCa:// → spotify://). Prevents duplicates and broken
+    // presets if the user re-adds a provider and its instance ID changes.
+    const uri = (req.body.uri || "").replace(/^([a-zA-Z_]+)--[^:]+:\/\//, '$1://');
     let lib = fs.existsSync(LIBRARY_FILE) ? JSON.parse(fs.readFileSync(LIBRARY_FILE)) : [];
 
     const targetSlot = parseInt(slot) || 0;

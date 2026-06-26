@@ -36,48 +36,78 @@ const sendBoseEnvelope = (res, bodyContent) => {
 // ============================================================================
 const handshakeTracker = {};
 
+function buildHandshakeDiagnosis(state) {
+    const { powerOn, bmx, sourceProviders, presets } = state;
+    if (!bmx && !sourceProviders && !presets) {
+        return 'Power-on signal received but BMX registry was never requested. The cloud emulator may not have been reachable at the time of power-on, or the speaker aborted before contacting it.';
+    }
+    if (bmx && !sourceProviders && !presets) {
+        return powerOn
+            ? 'Power-on with stalled handshake. BMX registry delivered but speaker stopped before requesting source providers or account profile.'
+            : 'BMX-only re-validation. Speaker contacted cloud for service routing but never requested source providers or account profile. Firmware likely cleared NVRAM expecting full cloud re-delivery that did not complete.';
+    }
+    if (bmx && sourceProviders && !presets) {
+        return powerOn
+            ? 'Partial handshake following power-on. Source providers delivered but account profile (preset injection) was not requested within the 30s window.'
+            : 'Partial re-validation. BMX and source providers delivered but account profile (preset injection) was not requested.';
+    }
+    return 'Incomplete handshake — one or more required steps did not complete within the 30s evaluation window.';
+}
+
 async function evaluateHandshake(ip) {
     const state = handshakeTracker[ip];
     if (!state) return;
 
-    // Evaluate success condition once to keep the code below clean and readable
     const isSuccess = state.presets && state.sourceProviders && state.bmx;
+    const stepLine = `PowerOn: ${state.powerOn ? '✅' : '❌'}  BMX: ${state.bmx ? '✅' : '❌'}  SourceProviders: ${state.sourceProviders ? '✅' : '❌'}  Account/Presets: ${state.presets ? '✅' : '❌'}`;
 
     if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
         utils.appendWatchdogLog(ip, {
-            ts:      new Date().toISOString(),
             type:    'handshake_result',
             success: isSuccess,
             steps:   { powerOn: state.powerOn, bmx: state.bmx, sourceProviders: state.sourceProviders, presets: state.presets }
         });
     }
 
-    if (isDebug()) {
-        console.log(`\n=======================================================================`);
-        console.log(`[Bose Cloud] HANDSHAKE DIAGNOSTIC REPORT FOR ${ip}`);
-        console.log(`=======================================================================`);
-        console.log(` 1. Power On Event Received:   ${state.powerOn ? '✅ YES' : '❌ NO'}`);
-        console.log(` 2. BMX Registry Requested:    ${state.bmx ? '✅ YES' : '❌ NO'}`);
-        console.log(` 3. Marge Source Prov. Req.:   ${state.sourceProviders ? '✅ YES' : '❌ NO'}`);
-        console.log(` 4. Marge Presets (Profile):   ${state.presets ? '✅ YES' : '❌ NO'}`);
-        console.log(`-----------------------------------------------------------------------`);
+    if (isSuccess) {
+        console.log(`[Bose Cloud] ✅ Cloud Handshake Complete for ${ip} — ${stepLine}`);
+    } else {
+        const diagnosis = buildHandshakeDiagnosis(state);
+        console.log(
+            `\n[Bose Cloud] ⚠️ INCOMPLETE HANDSHAKE — ${ip}\n` +
+            `   ${stepLine}\n` +
+            `   Diagnosis: ${diagnosis}` +
+            (!state.presets ? `\n   Action: WAPI preset recovery scheduled in 30s.` : '')
+        );
 
-        if (isSuccess) {
-            console.log(`[Bose Cloud] 🎉 STATUS: Good. Cloud Routing fully working.`);
-        } else {
-            console.log(`[Bose Cloud] ⚠️ STATUS: INCOMPLETE HANDSHAKE. Check network stability.`);
-        }
-        console.log(`=======================================================================\n`);
-        
-	} else {
-        // Standard (Non-Debug) Logging
-        if (isSuccess) {
-            console.log(`[Bose Cloud] ✅ Cloud Handshake Sequence Complete for ${ip}`);
-        } else {
-            console.log(`[Bose Cloud] ⚠️ NOTE: Handshake unconfirmed for ${ip} (possible network/timing delay). If presets fail, enable Debug Mode.`);
+        if (!state.presets) {
+            if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
+                utils.appendWatchdogLog(ip, {
+                    type:     'handshake_recovery',
+                    action:   'wapi_push_scheduled',
+                    diagnosis,
+                    delay_ms: 30000
+                });
+            }
+            setTimeout(async () => {
+                console.log(`[Bose Cloud] 🔄 WAPI Preset Recovery: pushing presets to ${ip}...`);
+                try {
+                    await utils.pushPresetsToSpeaker(ip);
+                    console.log(`[Bose Cloud] ✅ WAPI Preset Recovery complete for ${ip}.`);
+                    if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
+                        utils.appendWatchdogLog(ip, { type: 'handshake_recovery', action: 'wapi_push_complete' });
+                        await utils.queryPresetsForSpeaker(ip, 'post_recovery');
+                    }
+                } catch (e) {
+                    console.log(`[Bose Cloud] ❌ WAPI Preset Recovery FAILED for ${ip} — ${e.message}`);
+                    if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
+                        utils.appendWatchdogLog(ip, { type: 'handshake_recovery', action: 'wapi_push_failed', error: e.message });
+                    }
+                }
+            }, 30000);
         }
     }
-    
+
     await utils.queryPresetsForSpeaker(ip, 'after');
     delete handshakeTracker[ip];
 }

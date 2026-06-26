@@ -1,4 +1,5 @@
-# V3.7 Quick Notes: 
+# V3.7.1 Quick Notes: 
+*	🔊 Dynamic Detection of Lost Presets as it happens and Auto-Heals them at the same momeent.
 *	🔊 Address Bugs and Several Enhancements
 *	🔊 Support for multiple speaker groups and targeted master speaker selection #106, #102
 *	🔊 Physcical remote control implementation Hijacks for DNLA/AirPlay #120, #57, #70, #63
@@ -13,7 +14,7 @@
 *	🔊 Stereo Pairing of ST10s
 *	🔊 Auto config options and additional system tools on the Tools page to control app behavior and trouble shooting
 *	🔊 Includes a complete revamp of the Bose cloud simulation inject sequence. Now completely automated (no USB Stick)
-*	🔊 You must use (download) the new v3.7 bose-soundtouch-hybrid.yml. It has installs changes in addition to the updated version tag (do not use your old YML)
+*	🔊 You must use (download) the new v3.7.1 bose-soundtouch-hybrid.yml. It has installs changes in addition to the updated version tag (do not use your old YML)
 *	🔊 Startup will also copy a new .ENV to your directory. It will back up your old .ENV. (do not use your old .ENV)
 *	🔊 Startup uses your existing speaker, library and settings json. If you have already have them in will copy in templates you.
 *   🔊 https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/blob/main/bose-soundtouch-hybrid.yml
@@ -26,7 +27,7 @@
 
 Install: https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/edit/main/README.md#installations-via-docker-compose
 
-# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.7
+# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 - V3.7.1
 
 **A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch 10, 20, 30, Wave Speakers and Wireless Link. Physical Presets Included!**
 
@@ -147,12 +148,12 @@ Install Music Assistant (MASS):  ***version 2.8.5 or later is required***
 
 ### <img src="public/images/hybrid_icon.png" width="18"> Setting up SoundTouch Hybrid
 
-⚠️ **Important Upgrade Note For Existing V1 & V2 SoundTouch Hybrid Installations:** V3.7 has significant architectural changes including transitioning to streamlined pre-built Docker image. Because of fundamental changes to the system and file structures, you cannot simply update your existing container. This requires a complete fresh install.
+⚠️ **Important Upgrade Note For Existing V1 & V2 SoundTouch Hybrid Installations:** V3.7.1 has significant architectural changes including transitioning to streamlined pre-built Docker image. Because of fundamental changes to the system and file structures, you cannot simply update your existing container. This requires a complete fresh install.
 
 Before proceeding with the instructions below, please do the following:
    * **Backup Your Data:** Save a copy of your existing `.env`, `library.json` and `speakers.json` files. You need these to reference your specific IPs/ports/etc configs.
    * **Destroy the Old System:** Completely stop and remove your old SoundTouch Hybrid container, and delete your old project folder.
-   * **Do Not Reuse These Old Files:** The internal structure of the `.env` and `.yml` files have changed. When you deploy V3.7, the system will generate new configuration templates. Copy your IP's, credentials etc from your old backup files into the new files. Do not overwrite the new `.env` file with your old one. You can reuse your `speakers.json` and `library.json` files so after the fresh install just overlay the new same named files in you container directory. A `provider` key was added to  `library.json` so until an existing favorite/presets is resaved the `provider` value will not exist for object. This only impacts the new optional provider specific selection filter within the new library search function.
+   * **Do Not Reuse These Old Files:** The internal structure of the `.env` and `.yml` files have changed. When you deploy V3.7.1, the system will generate new configuration templates. Copy your IP's, credentials etc from your old backup files into the new files. Do not overwrite the new `.env` file with your old one. You can reuse your `speakers.json` and `library.json` files so after the fresh install just overlay the new same named files in you container directory. A `provider` key was added to  `library.json` so until an existing favorite/presets is resaved the `provider` value will not exist for object. This only impacts the new optional provider specific selection filter within the new library search function.
 
 #### <img src="public/images/hybrid_icon.png" width="18"> **Install Bose SoundTouch Hybrid 2026**
 1. **Create Directory & Download the Compose File:** Create a new folder on your local NAS or server named `bose-soundtouch-hybrid`. Download only the `bose-soundtouch-hybrid.yml` file from this repository and place it inside your new  `bose-soundtouch-hybrid` folder.
@@ -180,7 +181,7 @@ Before proceeding with the instructions below, please do the following:
 
 6. **Install the Web App:** Open your mobile browser and navigate to the SoundTouch Hybrid local web address (e.g., http://<YOUR_SERVER_IP>:3000/control.html). Tap **"Add to Home Screen"** to install it as a native-feeling app with a launch icon.
 
-7. **Redirect SoundTouch Speakers to Your Local Cloud:** In v3.7 the happens automatically (no more USB hijack) and is noted in the Pre-Flight console logs.
+7. **Redirect SoundTouch Speakers to Your Local Cloud:** In v3.7.1 the happens automatically (no more USB hijack) and is noted in the Pre-Flight console logs.
 
 8. **Demo Video Reviews:**
    *  **Initial V1 Core Functionality: 📺[Bose SoundTouch Hybrid 2026](https://www.youtube.com/watch?v=R6mbTRBEBYA)** 

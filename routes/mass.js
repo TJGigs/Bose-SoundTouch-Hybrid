@@ -103,7 +103,11 @@ async function playMedia(target, item) {
     console.log(`[MASS] 🎵 Play Request: ${item.name} on ${player.targetName}`);
     await ensureSpeakerOn(player.targetIp);
 
-    const uri = (Array.isArray(item.uri) ? item.uri[0] : item.uri) || "";
+    // Strip provider instance ID suffix (e.g. spotify--UgwRanCa:// → spotify://) so
+    // stored URIs remain valid even if the user re-adds a provider and it gets a new
+    // instance ID. MASS accepts the bare domain and routes to the active instance.
+    const rawUri = (Array.isArray(item.uri) ? item.uri[0] : item.uri) || "";
+    const uri = rawUri.replace(/^([a-zA-Z_]+)--[^:]+:\/\//, '$1://');
 
     // --- NUCLEAR FIX: CLEAR + DELAY + PLAY ---
     console.log(`[MASS] 🧹 Clearing Queue for ${player.targetName}...`);
@@ -629,7 +633,32 @@ async function forceRescan(aggressive = false, targetProvider = 'dlna') {
     }
 }
 // =======================================================================
-// SECTION 7: EXPORTS
+// SECTION 7: VOLUME SYNC
+// =======================================================================
+
+// Pushes the speaker's current volume to MASS so that MASS's stored volume
+// stays in sync with what the user actually set (via remote, speaker buttons,
+// or STH2026 UI). Called on standby transition so MASS doesn't override the
+// user's volume on the next power-on when "Volume Control" is enabled in MA.
+async function syncVolumeToMass(ip, volumeLevel) {
+    const { id } = await resolvePlayer(ip);
+    if (!id) return;
+    const token = await getToken();
+    if (!token) return;
+    try {
+        await client.post(`${BASE_URL}`, {
+            command: "players/cmd/volume_set",
+            args: { player_id: id, volume_level: volumeLevel },
+            message_id: Date.now()
+        }, { headers: { 'Authorization': `Bearer ${token}` } });
+        console.log(`[MASS] 🔊 Volume synced for ${ip}: MASS updated to ${volumeLevel}`);
+    } catch (e) {
+        console.log(`[MASS] ⚠️ Volume sync failed for ${ip}: ${e.message}`);
+    }
+}
+
+// =======================================================================
+// SECTION 8: EXPORTS
 // =======================================================================
 module.exports = {
     play,
@@ -648,6 +677,7 @@ module.exports = {
     isRecovering,
     getHealth,
     resetHealth,
-    playHealthWarning, 
-    forceRescan      
+    playHealthWarning,
+    forceRescan,
+    syncVolumeToMass
 };

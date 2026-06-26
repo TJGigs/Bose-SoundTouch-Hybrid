@@ -153,6 +153,7 @@ async function speakerHasHybridPresets(ip) {
 //   - runSpeakerAudit (scheduled nightly audit)
 //   - Preset Watchdog Push mode (recurring interval)
 //   - Manual "Push Now" button (Tools page)
+//   - Cloud handshake recovery (incomplete handshake — presets not injected via account/full)
 async function pushPresetsToSpeaker(ip) {
     const definitions = getHybridPresetDefinitions();
     const nowSec = Math.floor(Date.now() / 1000);
@@ -169,21 +170,21 @@ async function pushPresetsToSpeaker(ip) {
                 timeout: 3000
             });
         } catch (e) {
-            console.error(`[Preset Watchdog] ❌ Failed to push Preset ${preset.id} to ${ip}: ${e.message}`);
+            console.error(`[Preset Push] ❌ Failed to push Preset ${preset.id} to ${ip}: ${e.message}`);
         }
     }
-    console.log(`[Preset Watchdog] ✅ All 6 presets pushed to ${ip}.`);
+    console.log(`[Preset Push] ✅ All 6 presets pushed to ${ip}.`);
 }
 
-// --- WATCHDOG OBSERVE: 12-HOUR ROLLING LOG ---
+// --- WATCHDOG OBSERVE: 24-HOUR ROLLING LOG ---
 // Appends one entry (JSON object) to config/logs/watchdog_<ip>.json.
-// On every write, entries older than 12 hours are pruned so the file self-limits.
+// On every write, entries older than 24 hours are pruned so the file self-limits.
 function appendWatchdogLog(ip, entry) {
     const { ts: _ignored, ...rest } = entry;
     const stamped = { ts: localTimestamp(), ...rest };
     const logPath = path.join(LOG_DIR, `watchdog_${ip.replace(/\./g, '_')}.json`);
-    const TWELVE_HOURS = 12 * 60 * 60 * 1000;
-    const cutoff = Date.now() - TWELVE_HOURS;
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - TWENTY_FOUR_HOURS;
 
     let entries = [];
     try {
