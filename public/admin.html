@@ -90,7 +90,7 @@
 
           <div class="control-row">
             <input type="text" id="n-${d.ip}" value="${d.name}" style="background:var(--bg-color); color:var(--text); border:1px solid #777; padding:4px; border-radius:3px;">
-            <button onclick="ren('${d.ip}')">Save</button>
+            <button onclick="ren('${d.ip}', this)">Save</button>
           </div>
           
           <div class="control-row" style="align-items:flex-start; flex-direction:column; gap:5px;">
@@ -115,7 +115,7 @@
             <button id="ao-${d.ip}" onclick="tA('${d.ip}', this)">...</button>
           </div>
           
-          <div class="control-row"><label>Bluetooth</label><button onclick="pBT('${d.ip}')">Pairing</button></div>	  
+          <div class="control-row"><label>Bluetooth</label><button onclick="pBT('${d.ip}', this)">Pairing</button></div>
           
           <div class="control-row ${hasClock ? '' : 'hidden'}">
             <label>Clock</label>
@@ -251,30 +251,45 @@
       setTimeout(() => fetchDeviceState(ip), 1500); 
   }
   
-  async function ren(ip) { 
+  async function ren(ip, btn) {
+      const orig = btn ? btn.innerHTML : null;
+      if (btn) { btn.disabled = true; btn.textContent = '...'; }
       try {
           const newName = document.getElementById(`n-${ip}`).value;
-          const res = await fetch('/api/admin/name', { 
-              method: 'POST', 
-              headers: {'Content-Type':'application/json'}, 
-              body: JSON.stringify({ ip, name: newName }) 
-          }); 
-          
+          const res = await fetch('/api/admin/name', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ ip, name: newName })
+          });
+
           if (!res.ok) {
               const errText = await res.text();
+              if (btn) { btn.innerHTML = orig; btn.disabled = false; }
               alert("Speaker rejected the name change: " + errText);
-              return; 
+              return;
           }
-          
-          alert("Saved"); 
-          setTimeout(() => fetchDeviceState(ip), 2000); 
+
+          if (btn) {
+              btn.textContent = '✅ Saved';
+              btn.classList.add('btn-success');
+              setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('btn-success'); btn.disabled = false; }, 3000);
+          }
+          setTimeout(() => fetchDeviceState(ip), 2000);
       } catch (e) {
+          if (btn) { btn.innerHTML = orig; btn.disabled = false; }
           alert("Network error: " + e.message);
       }
   }
 
   async function sB(ip, value) { await fetch('/api/admin/bass', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip, value }) }); }
-  async function pBT(ip) { await fetch('/api/admin/bluetooth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip }) }); alert("Pairing Mode Active"); }
+  async function pBT(ip, btn) {
+      if (btn) { btn.disabled = true; btn.innerText = '...'; }
+      await fetch('/api/admin/bluetooth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip }) });
+      if (btn) {
+          btn.innerText = '✅ Active';
+          setTimeout(() => { btn.innerText = 'Pairing'; btn.disabled = false; }, 4000);
+      }
+  }
   
   async function tS(ip, tag, btn) { 
       btn.innerText = "...";
@@ -302,7 +317,7 @@ async function rebootSpk(ip) {
     if(!confirm("Are you sure you want to completely reboot this speaker via Telnet? This will take a moment.\n\n⚠️ Note: Once rebooted, the system will forcefully restart the DLNA and AirPlay providers to restore the socket. Active audio streams on other speakers may momentarily stop.")) return;
     
     await fetch('/api/admin/reboot_speaker', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip }) });
-    alert("✅ Telnet Reboot Command sent!\n\nThe network providers will aggressively reload in 90 seconds.");
+    alert("✅ Reboot command sent.\n\nThe speaker will be back online in approximately 90 seconds.");
 }
 
 

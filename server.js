@@ -1,9 +1,9 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.7.2";
-const ENV_SCHEMA_VERSION = "v3.5";
-const SETTINGS_SCHEMA_VERSION = "v3.7";
+const CURRENT_VERSION = "v3.8";
+const ENV_SCHEMA_VERSION = "v3.8";
+const SETTINGS_SCHEMA_VERSION = "v3.8";
 const minReq = [2, 9, 4]; //MASS VERSION
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 const express = require('express');
@@ -89,7 +89,13 @@ const envTemplatePath = path.join(APP_ROOT, 'templates', '.env.template');
 const speakersTemplatePath = path.join(APP_ROOT, 'templates', 'speakers.template.json');
 const libraryTemplatePath = path.join(APP_ROOT, 'templates', 'library.template.json');
 
-let isReady = true; 
+let isReady = true;
+let NEEDS_DISCOVERY = false;
+
+// V4 DEVFLAG Gate 
+const ENABLE_V4 = false;
+global.ENABLE_V4 = ENABLE_V4;
+const speakersV4Path = path.join(LOG_DIR, 'speakers_v4.json');
 
 // Handle .env and Migration
 if (fs.existsSync(envPath)) {
@@ -128,11 +134,11 @@ if (!fs.existsSync(speakersPath)) {
     console.log(`[Boot] speakers.json not found. Copying template...`);
     if (fs.existsSync(speakersTemplatePath)) {
         fs.copyFileSync(speakersTemplatePath, speakersPath);
-        console.log(`[!!] Validation Failed: Fresh speakers.json file created. Requires user configuration.`);
+        console.log(`[Boot] Fresh speakers.json created from template. Edit config/speakers.json and restart.`);
     } else {
         console.error(`[Boot] CRITICAL: speakers.template.json is missing from ${speakersTemplatePath}`);
+        isReady = false;
     }
-    isReady = false; 
 } else {
     console.log(`[Boot] speakers.json already exists. Skipping generation.`);
 }
@@ -166,12 +172,13 @@ const DEFAULT_SETTINGS = {
     autoRestartMass: false,
     autoSyncVolume: false,
     mobileAutoSortSpeakers: true,
-    scheduledSpeakerAudit: true,
+    scheduledSpeakerAudit: false,
     scheduledAuditHour: 2,
     scheduledRestart: false,
     scheduledRestartHour: 3,
     includeReboot: false,
     doubleTapPresets: false,
+    presetPreview: false,
     restrictedMode: false,
     adminPin: "",
     scheduledPlays: [],
@@ -221,8 +228,13 @@ if (isReady) {
             const speakersData = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
             const hasTemplateData = speakersData.some(s => s.ip === "999.999.9.9" || s.name.includes("TypeInSpeakerName"));
             if (hasTemplateData) {
-                console.log(`[!!] Validation Failed: speakers.json contains template data (TypeInSpeakerName, 999.999.9.9).`);
-                isReady = false;
+                if (ENABLE_V4) {
+                    console.log(`[Boot] 🔍 [V4] speakers.json has template data — auto-discovery will run.`);
+                    NEEDS_DISCOVERY = true;
+                } else {
+                    console.log(`[!!] Validation Failed: speakers.json has placeholder data. Please edit config/speakers.json.`);
+                    isReady = false;
+                }
             }
         } catch (e) {
             console.log(`[!!] Validation Failed: speakers.json is invalid JSON.`);
@@ -251,7 +263,7 @@ if (!isReady) {
 // PHASE 5: ENVIRONMENT INITIALIZATION
 // ============================================================================
     const deviceState = require('./device_state');
-    const { dockerAction, getMassHealth } = require('./routes/mass_utils');
+    const { restartMassContainer, getMassHealth } = require('./routes/mass_utils');
     const preflight = require('./routes/preflight');
 
     // Smart Timezone Detection & Logging
@@ -264,7 +276,6 @@ if (!isReady) {
         console.log(`[Boot] ⚠️ No Timezone found in Docker .yml. Defaulting to UTC.`);
     }
 
-    const SPEAKERS = require(speakersPath);
     const PORT = process.env.APP_PORT;
 
     // ============================================================================
@@ -332,13 +343,84 @@ if (!isReady) {
     }
 
     async function systemBoot() {
+
+        // --- [V4] AUTO-DISCOVERY (runs only when speakers.json had template placeholder data) ---
+        if (NEEDS_DISCOVERY) {
+            const { discoverSpeakers } = require('./routes/utils');
+            const massIp = process.env.MASS_IP;
+            const subnet = massIp.split('.').slice(0, 3).join('.');
+            console.log(`\n[Boot] 🔍 [V4] Auto-discovering Bose SoundTouch speakers on ${subnet}.0/24...`);
+            console.log(`[Boot] ⏳ This may take a few seconds...`);
+            const discovered = await discoverSpeakers(subnet);
+            if (discovered.length === 0) {
+                console.error('========================================================');
+                console.error(' [V4] AUTO-DISCOVERY FAILED: No Bose SoundTouch speakers found.');
+                console.error(' Please manually edit config/speakers.json with your');
+                console.error(' speaker IPs and names, then restart the container.');
+                console.error('========================================================');
+                setInterval(() => {}, 1000 * 60 * 60);
+                return;
+            }
+            fs.writeFileSync(speakersV4Path, JSON.stringify(discovered, null, 2));
+            console.log(`[Boot] ✅ [V4] Auto-discovered ${discovered.length} speaker(s) — speakers_v4.json written.`);
+            discovered.forEach(s => console.log(`   • ${s.name.padEnd(25)} ${s.ip}  [deviceId: ${s.deviceId || 'n/a'}]`));
+        }
+
+        // Load speakers fresh from file (picks up auto-discovery results if just written)
+        const SPEAKERS = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
+
+        // [V4] PARALLEL DISCOVERY BLOCK — runs before the main roll call when ENABLE_V4 is true.
+        // Scans the network, merges results into speakers_v4.json (preserving offline speakers),
+        // writes the file, then prints a V4 roll call. Invisible when ENABLE_V4 is false.
+        if (ENABLE_V4) {
+            const { discoverSpeakers } = require('./routes/utils');
+            const massIp = process.env.MASS_IP;
+            const subnet = massIp ? massIp.split('.').slice(0, 3).join('.') : null;
+            if (subnet) {
+                console.log(`\n[V4] 🔍 Running network discovery on ${subnet}.0/24...`);
+                const discovered = await discoverSpeakers(subnet);
+                const discoveredIps = new Set(discovered.map(s => s.ip));
+
+                let v4Speakers = [];
+                if (fs.existsSync(speakersV4Path)) {
+                    try { v4Speakers = JSON.parse(fs.readFileSync(speakersV4Path, 'utf8')); } catch (e) { v4Speakers = []; }
+                }
+
+                for (const found of discovered) {
+                    const existing = v4Speakers.find(s => s.ip === found.ip);
+                    if (existing) {
+                        if (found.name) existing.name = found.name;
+                        if (found.type) existing.type = found.type;
+                        if (found.deviceId) existing.deviceId = found.deviceId;
+                    } else {
+                        v4Speakers.push(found);
+                        console.log(`[V4] ✨ New speaker added: ${found.name} (${found.ip})`);
+                    }
+                }
+
+                fs.writeFileSync(speakersV4Path, JSON.stringify(v4Speakers, null, 2));
+
+                console.log(`\n[V4] 💾 speakers_v4.json updated — ${v4Speakers.length} speaker(s):`);
+                console.log("=========================================================================");
+                for (const s of v4Speakers) {
+                    if (discoveredIps.has(s.ip)) {
+                        console.log(` [OK] ${s.name.padEnd(20)} | Type: ${(s.type || 'Unknown').padEnd(15)} | IP: ${s.ip}`);
+                    } else {
+                        console.log(` [!!] ${s.name.padEnd(20)} | IP: ${s.ip.padEnd(15)} | OFFLINE (Not seen this scan)`);
+                    }
+                }
+                console.log("=========================================================================");
+            }
+        }
+
         console.log("\n=======================================================================");
         console.log(`[Boot]          🔍  Checking configured speakers...`);
         console.log("\========================================================================");
-        
+
         const ALIVE_SPEAKERS = [];
+        global.MISSED_AT_BOOT = new Set();
         const parser = new xml2js.Parser({ explicitArray: false });
-        
+
         // STEP 1: The Hardware Roll Call (Ping Check)
         for (const s of SPEAKERS) {
             try {
@@ -346,9 +428,10 @@ if (!isReady) {
                 const data = await parser.parseStringPromise(res.data);
                 const type = data.info.type || data.info.$.type || "Unknown";
                 console.log(` [OK] ${s.name.padEnd(20)} | Type: ${type.padEnd(15)} | IP: ${s.ip}`);
-                ALIVE_SPEAKERS.push(s); 
+                ALIVE_SPEAKERS.push(s);
             } catch (e) {
                 console.log(` [!!] ${s.name.padEnd(20)} | IP: ${s.ip.padEnd(15)} | OFFLINE (Skipping)`);
+                global.MISSED_AT_BOOT.add(s.ip);
             }
         }
         console.log("=========================================================================");
@@ -457,28 +540,21 @@ if (!isReady) {
         }
 
         // STEP 4: Establish Territory (WebSockets)
+        // All configured speakers get a WebSocket connection loop, including any that were
+        // offline at boot. Speakers in global.MISSED_AT_BOOT will trigger late-join config
+        // enforcement automatically on their first successful connection.
         console.log(`\n-----------------------------------------------------------------------`);
         console.log(`[Boot] Connecting Real-time WebSockets...`);
         console.log(`-------------------------------------------------------------------------`);
-        ALIVE_SPEAKERS.forEach(s => deviceState.initDevice(s));
+        SPEAKERS.forEach(s => deviceState.initDevice(s));
         
 		// STEP 5: The Introduction (Restart MASS)
         console.log(`\n-----------------------------------------------------------------------`);
         console.log(`[Boot] 🧹 Triggering Music Assistant restart for a clean network state...`);
         console.log(`-----------------------------------------------------------------------\n`);
         
-        let dockerRestartSuccess = false;
-        try {
-            await dockerAction('restart');
-            console.log(`\n[Boot] ⏳ Waiting for Music Assistant Docker container to boot...`);
-            dockerRestartSuccess = true;
-        } catch (e) {
-            const configuredName = process.env.MASS_CONTAINER_NAME || "NOT SET";
-            console.error(`[Boot] ❌ Docker Restart Failed: ${e.message}`);
-            console.error(`[Boot] 💡 The app tried to restart the container named: "${configuredName}"`);
-            console.error(`[Boot] 💡 Please verify this exactly matches your Music Assistant container name in your config/.env file.`);
-            console.error(`[Boot] 💡 Also ensure the docker.sock volume is mapped correctly in your docker-compose.yml file.\n`);
-        }
+        const dockerRestartSuccess = await restartMassContainer();
+        if (dockerRestartSuccess) console.log(`\n[Boot] ⏳ Waiting for Music Assistant to come back online...`);
 
         let massHealth = { isOnline: false, version: "Unknown" };
         let healthAttempts = 0;
@@ -507,9 +583,13 @@ if (!isReady) {
             const isOutdated = current.some((num, i) => num < minReq[i]);
             if (isOutdated) {console.log(`[Boot] ⚠️  NOTICE: Music Assistant ${minReq.join('.')} or later is required.\n`);}
 
-          // STEP 6: Smart Polling & Configuration Injection        
-            const { enforcePlayerConfigs } = require('./routes/mass_utils');
+          // STEP 6: Smart Polling & Configuration Injection
+            const { enforcePlayerConfigs, enforcePlayerConfigsForSpeaker } = require('./routes/mass_utils');
             await enforcePlayerConfigs(ALIVE_SPEAKERS);
+
+            // Register the late-join callback so device_state.js can trigger config
+            // enforcement for any speaker that was offline at boot and connects later.
+            deviceState.setLateJoinCallback(enforcePlayerConfigsForSpeaker);
             console.log(`-------------------------------------------------------------------------`);
             console.log(`[Boot] 🔥 Prefetching recently played items to warm MASS cache...`);
 

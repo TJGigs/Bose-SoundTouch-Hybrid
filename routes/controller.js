@@ -239,6 +239,14 @@ router.post('/key', async(req, res) => {
 
 	if (key.startsWith('PRESET_')) {
         const presetNum = parseInt(key.split('_')[1]);
+        const isExtended = presetNum > 6;
+        const baseNum = isExtended ? Math.floor(presetNum / 11) : presetNum;
+        const baseKey = `PRESET_${baseNum}`;
+
+        if (isExtended) {
+            const bridge = require('./bridge');
+            bridge.setExtendedIntent(ip, baseNum);
+        }
 
         mass.setPresetMemory(ip, presetNum);
         deviceState.setExpectation(ip, 'PRESET', presetNum, '');
@@ -250,8 +258,8 @@ router.post('/key', async(req, res) => {
                 await sleep(1500);
             }
 
-            const press = `<key state="press" sender="Gabbo">${key}</key>`;
-            const release = `<key state="release" sender="Gabbo">${key}</key>`;
+            const press = `<key state="press" sender="Gabbo">${baseKey}</key>`;
+            const release = `<key state="release" sender="Gabbo">${baseKey}</key>`;
 
             const keySuccess = await sendBoseXml(ip, 'key', press);
             await sleep(PRESS_DELAY);
@@ -260,7 +268,7 @@ router.post('/key', async(req, res) => {
             if (keySuccess) return res.send({ success: true });
         } catch (e) {}
 
-        const fallbackSuccess = await handlePresetSelection(ip, presetNum, currentState);
+        const fallbackSuccess = await handlePresetSelection(ip, baseNum, currentState);
         if (fallbackSuccess) return res.send({ success: true });
 
         return res.status(500).send({ error: "Preset logic failed" });

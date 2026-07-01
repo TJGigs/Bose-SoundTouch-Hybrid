@@ -495,7 +495,7 @@ function scheduleProviderReload(context) {
     const label = context || 'rebooted speakers';
     console.log(`[Scheduler] ⏱️ Starting 90-second Music Assistant recovery timer for ${label}...`);
     setTimeout(async () => {
-        console.log(`[Scheduler] 🔄 Triggering aggressive Music Assistant provider reload for ${label}...`);
+        console.log(`[Scheduler] 🔄 Reloading Music Assistant DLNA & AirPlay providers for ${label}...`);
         try {
             const LOCAL_PORT = process.env.APP_PORT || 8080;
             await axios.post(`http://127.0.0.1:${LOCAL_PORT}/api/admin/rescan_ma`, { aggressive: true, provider: 'dlna' });
@@ -505,6 +505,43 @@ function scheduleProviderReload(context) {
             console.error(`[Scheduler] ❌ Failed to reload MA providers:`, err.message);
         }
     }, 90000);
+}
+
+// --- SPEAKER DISCOVERY ---
+// Scans a /24 subnet for Bose SoundTouch speakers via parallel /info requests.
+// Used both at boot (auto-discovery when speakers.json has template data) and
+// by the manual discovery endpoint in tools.js.
+async function discoverSpeakers(subnet) {
+    const parser = new xml2js.Parser({ explicitArray: false });
+    const promises = [];
+
+    for (let i = 1; i <= 254; i++) {
+        const ip = `${subnet}.${i}`;
+        promises.push(
+            axios.get(`http://${ip}:8090/info`, { timeout: 1500 })
+                .then(async res => {
+                    try {
+                        const data = await parser.parseStringPromise(res.data);
+                        if (!data || !data.info) return null;
+                        const type = data.info.type ? String(data.info.type) : '';
+                        if (!type.toLowerCase().includes('soundtouch')) return null;
+                        const name = data.info.name ? String(data.info.name) : 'Unknown Speaker';
+                        const deviceId = data.info.deviceID ? String(data.info.deviceID)
+                                       : (data.info.$ && data.info.$.deviceID) ? String(data.info.$.deviceID)
+                                       : null;
+                        return { name, ip, deviceId, type };
+                    } catch {
+                        return null;
+                    }
+                })
+                .catch(() => null)
+        );
+    }
+
+    const results = await Promise.allSettled(promises);
+    return results
+        .filter(r => r.status === 'fulfilled' && r.value !== null)
+        .map(r => r.value);
 }
 
 module.exports = {
@@ -526,5 +563,6 @@ module.exports = {
     pushPresetsToSpeaker,
     appendWatchdogLog,
     queryPresetsForSpeaker,
-    updateWatchdogGlobals
+    updateWatchdogGlobals,
+    discoverSpeakers
 };

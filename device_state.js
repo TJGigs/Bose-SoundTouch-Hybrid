@@ -29,6 +29,11 @@ const USER_ACTIVITY_TIMER = {};   // ip → timeout handle for coalescing remote
 const WAKE_MEMORY = {}; // App Mem for Behavior 4
 const AUTO_RESUME_TIMERS = {}; // Tracks timers thy can be cancelled if interrupted
 
+// Registered by server.js after boot to enforce MASS player config for speakers
+// that were offline at boot and connect for the first time via WebSocket.
+let _lateJoinCallback = null;
+function setLateJoinCallback(fn) { _lateJoinCallback = fn; }
+
 // --- PERSISTENT AUTO-RESUME STATE ---
 const RESUME_STATE_PATH = path.join(process.cwd(), 'config', 'resume_state.json');
 
@@ -40,28 +45,85 @@ function saveResumeState() {
     }
 }
 
-// Load persisted resume state on startup; prune IPs not in speakers.json
+const EXTENDED_PRESET_SLOTS = new Set([11, 22, 33, 44, 55, 66]);
+
+// Clears ALL auto-resume entries from memory and disk.
+// Called from tools.js when autoResumePreset is disabled.
+function clearAllResumeState() {
+    const count = Object.keys(WAKE_MEMORY).length;
+    for (const ip of Object.keys(WAKE_MEMORY)) delete WAKE_MEMORY[ip];
+    try {
+        fs.writeFileSync(RESUME_STATE_PATH, JSON.stringify({}, null, 2));
+    } catch (e) {
+        console.error('[DeviceState] ⚠️ Failed to clear resume_state.json:', e.message);
+    }
+    if (count > 0)
+        console.log(`[DeviceState] 🧹 Auto-resume disabled — cleared ${count} saved preset entry(s) from resume_state.json.`);
+}
+
+// Removes extended-slot entries (11,22,33,44,55,66) from WAKE_MEMORY and persists to disk.
+// Called at boot when extended presets are off, and from tools.js when the setting is disabled.
+function pruneExtendedPresetsFromMemory() {
+    const before = Object.keys(WAKE_MEMORY).length;
+    for (const ip of Object.keys(WAKE_MEMORY)) {
+        if (EXTENDED_PRESET_SLOTS.has(WAKE_MEMORY[ip])) delete WAKE_MEMORY[ip];
+    }
+    const removed = before - Object.keys(WAKE_MEMORY).length;
+    if (removed > 0) {
+        console.log(`[DeviceState] 🧹 Pruned ${removed} extended preset entry(s) from auto-resume state (extended presets are disabled).`);
+        saveResumeState();
+    }
+}
+
+// Load persisted resume state on startup.
+// Prunes IPs not in speakers.json and extended preset slots when extended presets are disabled.
 (function loadResumeState() {
     try {
         if (!fs.existsSync(RESUME_STATE_PATH)) return;
+
         const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
         const knownIps = new Set(
             fs.existsSync(speakersPath)
                 ? JSON.parse(fs.readFileSync(speakersPath, 'utf8')).map(s => s.ip)
                 : []
         );
+
+        let extendedEnabled = false;
+        try {
+            const settingsPath = path.join(process.cwd(), 'config', 'settings.json');
+            if (fs.existsSync(settingsPath)) {
+                extendedEnabled = JSON.parse(fs.readFileSync(settingsPath, 'utf8')).doubleTapPresets === true;
+            }
+        } catch (e) { /* settings unreadable — default to false (safe) */ }
+
         const saved = JSON.parse(fs.readFileSync(RESUME_STATE_PATH, 'utf8'));
         let pruned = false;
+        let prunedExtended = 0;
+
         for (const [ip, presetId] of Object.entries(saved)) {
             if (knownIps.size > 0 && !knownIps.has(ip)) { pruned = true; continue; }
-            if (Number.isInteger(presetId) && presetId >= 1 && presetId <= 6) {
+
+            const isStandard = Number.isInteger(presetId) && presetId >= 1 && presetId <= 6;
+            const isExtended = Number.isInteger(presetId) && EXTENDED_PRESET_SLOTS.has(presetId);
+
+            if (isStandard) {
                 WAKE_MEMORY[ip] = presetId;
+            } else if (isExtended && extendedEnabled) {
+                WAKE_MEMORY[ip] = presetId;
+            } else if (isExtended && !extendedEnabled) {
+                pruned = true;
+                prunedExtended++;
             }
         }
+
         if (pruned) {
             fs.writeFileSync(RESUME_STATE_PATH, JSON.stringify(WAKE_MEMORY, null, 2));
-            console.log('[DeviceState] 🧹 resume_state.json: orphan IPs pruned.');
+            if (prunedExtended > 0)
+                console.log(`[DeviceState] 🧹 resume_state.json: ${prunedExtended} extended preset entry(s) discarded (extended presets are disabled).`);
+            else
+                console.log('[DeviceState] 🧹 resume_state.json: orphan IPs pruned.');
         }
+
         const count = Object.keys(WAKE_MEMORY).length;
         if (count > 0) console.log(`[DeviceState] 💾 Auto-resume state loaded: ${count} speaker(s).`);
     } catch (e) {
@@ -425,6 +487,14 @@ async function initDevice(device) {
                 reconnectDelay = 5000;
                 failedAttempts = 0;
             }
+            // If this speaker was offline at boot, trigger config enforcement now that
+            // it has connected. The callback runs after a 12s settle (MA needs time to
+            // recognize the speaker and hydrate its protocol config keys).
+            if (global.MISSED_AT_BOOT?.has(device.ip)) {
+                global.MISSED_AT_BOOT.delete(device.ip);
+                console.log(`[DeviceState] 🆕 ${device.ip} online for first time after boot miss — triggering MASS config enforcement.`);
+                if (_lateJoinCallback) _lateJoinCallback(device.ip);
+            }
         });
 
         ws.on('message', async (data) => {
@@ -523,6 +593,7 @@ async function initDevice(device) {
                         presetId = parseInt(selection.preset.id || (selection.preset.$ && selection.preset.$.id) || 0);
                     }
                     if (presetId > 0) {
+                        console.log(`[DeviceState] ⏱️ PRESET_${presetId} press on ${device.ip} at ${Date.now()}ms`);
                         const ci = selection.preset?.ContentItem;
                         if (ci) {
                             const source   = ci.$?.source   || ci.source   || '';
@@ -652,15 +723,22 @@ async function processSettledState(ip) {
             // preset lock INSTANTLY, but the hardware still reports "STANDBY" for another 2 seconds.
             // We must NOT wipe the preset memory if a PRESET expectation is actively locked!
             const isWakingViaPreset = EXPECTATIONS[ip] && EXPECTATIONS[ip].type === 'PRESET';
-            
-            if (!isWakingViaPreset) {
+
+            if (isWakingViaPreset) {
+                console.log(`[DeviceState] ⚡ ${ip} Standby detected but PRESET expectation active — cmdStop suppressed (wake race guard).`);
+            } else {
                 mass.setPresetMemory(ip, 0);
                 delete LAST_METADATA[ip];
-                if (LAST_VALID_STATE[ip] && LAST_VALID_STATE[ip].isStandby === false) {
+                if (!LAST_VALID_STATE[ip]) {
+                    if (global.DEBUG_MODE) console.log(`[DeviceState] ⚡ ${ip} Standby detected but no prior state recorded — cmdStop skipped.`);
+                } else if (LAST_VALID_STATE[ip].isStandby !== false) {
+                    if (global.DEBUG_MODE) console.log(`[DeviceState] ⚡ ${ip} Standby detected — prior state was already Standby — cmdStop skipped (no transition).`);
+                } else {
                     // The 1-2 Punch: Stop the active stream, then clear MA queue completely
-                    mass.cmdStop(ip).catch(() => {}); // Kill transport session (stops AirPlay keepalives)
-                    mass.stop(ip).catch(() => {});
-                    mass.clearQueue(ip).catch(() => {});
+                    console.log(`[DeviceState] 💤 ${ip} entered Standby — stopping MASS.`);
+                    mass.cmdStop(ip).catch((e) => console.error(`[DeviceState] ❌ cmdStop failed for ${ip}: ${e.message}`));
+                    mass.stop(ip).catch((e) => console.error(`[DeviceState] ❌ stop failed for ${ip}: ${e.message}`));
+                    mass.clearQueue(ip).catch((e) => console.error(`[DeviceState] ❌ clearQueue failed for ${ip}: ${e.message}`));
                     // Sync final volume to MASS so it doesn't override with a stale value
                     // on the next power-on when MA "Volume Control" is enabled.
                     mass.syncVolumeToMass(ip, NATIVE_CACHE[ip].volume).catch(() => {});
@@ -940,8 +1018,11 @@ async function processSettledState(ip) {
             if (finalPlayStatus === 'PLAY_STATE') {
                 if (!lastState || lastState.track !== finalTrack || lastState.playStatus !== finalPlayStatus) {
                     console.log(`[DeviceState] 🎵 ${ip} playing "${finalTrack || 'Unknown'}" via ${finalProvider || source || 'Unknown'}`);
-                    if (source === 'INVALID_SOURCE' && global.WATCHDOG_SPEAKERS?.includes(ip)) {
-                        utils.appendWatchdogLog(ip, { ts: new Date().toISOString(), type: 'ws_event', source: 'INVALID_SOURCE' });
+                    if (source === 'INVALID_SOURCE') {
+                        if (!global.PRE_BMX_SIGNAL) global.PRE_BMX_SIGNAL = {};
+                        global.PRE_BMX_SIGNAL[ip] = Date.now();
+                        if (global.WATCHDOG_SPEAKERS?.includes(ip))
+                            utils.appendWatchdogLog(ip, { ts: new Date().toISOString(), type: 'ws_event', source: 'INVALID_SOURCE' });
                     }
                 }
             } else if (isStandby) {
@@ -1052,7 +1133,10 @@ module.exports = {
     setExpectation,
     clearSession,
     setAirplayPauseIntent,
-    clearAirplayPauseIntent
+    clearAirplayPauseIntent,
+    setLateJoinCallback,
+    clearAllResumeState,
+    pruneExtendedPresetsFromMemory
 };
  
 // =================================================================

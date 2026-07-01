@@ -55,7 +55,7 @@ const maHealthBannerHTML = `
             </li>
             <li>
                 <strong>Dropped DLNA/AirPlay Socket:</strong><br>
-                The speaker connection dropped. Try a quick <strong>Reload DLNA & AirPlay</strong> first.
+                The speaker connection dropped. Try a quick <strong>Reload MA DLNA & AirPlay Providers</strong> first.
             </li>
             <li>
                 <strong>Server Locked Up:</strong><br>
@@ -65,7 +65,7 @@ const maHealthBannerHTML = `
     </div>
     <div class="banner-actions">
         <button class="btn-dismiss banner-button banner-button--success" onclick="dismissHealthModal()">✅ Dismiss</button>
-        <button class="btn-reconnect banner-button" onclick="executeGlobalRecovery(this)">🚨 Reload DLNA & AirPlay</button>
+        <button class="btn-reconnect banner-button" onclick="executeGlobalRecovery(this)">🔄 Reload MA DLNA & AirPlay Providers</button>
         <button class="btn-restart banner-button" onclick="executeGlobalRestart(this)">Restart Service</button>
     </div>
 </div>
@@ -78,14 +78,14 @@ async function executeGlobalRecovery(btn) {
     btn.disabled = true;
 
     try {
-        // Aggressively Reload DLNA
+        // Reload MA DLNA provider
         await fetch('/api/admin/rescan_ma', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ aggressive: true, provider: 'dlna' })
         });
         
-        // Aggressively Reload AirPlay
+        // Reload MA AirPlay provider
         await fetch('/api/admin/rescan_ma', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -213,6 +213,7 @@ function makeBannerDraggable() {
     function elementTouchDrag(e) { const touch = e.touches[0]; pos1 = pos3 - touch.clientX; pos2 = pos4 - touch.clientY; pos3 = touch.clientX; pos4 = touch.clientY; banner.style.top = (banner.offsetTop - pos2) + "px"; banner.style.left = (banner.offsetLeft - pos1) + "px"; }
     function closeDragElement() { document.onmouseup = null; document.onmousemove = null; document.ontouchend = null; document.ontouchmove = null; header.style.cursor = 'grab'; }
 }
+
 
 // --- GLOBAL SYSTEM ACTIONS ---
 window.triggerGlobalAllOff = async function() {

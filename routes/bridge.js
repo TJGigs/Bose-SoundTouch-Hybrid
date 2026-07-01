@@ -7,7 +7,21 @@ const mass = require('./mass');
 const LIBRARY_FILE = path.join(__dirname, '../config/library.json');
 const SILENT_MP3_B64 = "//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
 const SILENT_MP3_BUFFER = Buffer.from(SILENT_MP3_B64, 'base64');
-const utils = require('./utils'); 
+const utils = require('./utils');
+
+const PENDING_TAP = {};
+const EXTENDED_INTENT = {};
+
+function setExtendedIntent(ip, basePresetId) {
+    EXTENDED_INTENT[ip] = basePresetId;
+    setTimeout(() => { delete EXTENDED_INTENT[ip]; }, 10000);
+}
+
+function getSettings() {
+    try {
+        return JSON.parse(fs.readFileSync(path.join(__dirname, '../config/settings.json'), 'utf8'));
+    } catch (e) { return {}; }
+}
 
 router.use((req, res, next) => {
     // This part hides the "noise" from the UI poller AND background telemetry traps
@@ -41,35 +55,63 @@ router.get('/silent.mp3', (req, res) => {
 router.get('/preset/:id.mp3', async (req, res) => {
     const id = parseInt(req.params.id);
     const ip = (req.ip || req.connection.remoteAddress).replace('::ffff:', '');
-    
+
     console.log(`\n🔘 PHYSICAL PRESS: P${id} from ${ip}`);
 
-    // 1. Tell the speaker this is a valid continuous radio stream
     res.set({
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-cache',
         'icy-name': `Hybrid Preset ${id}`,
         'icy-description': 'Starting Music Assistant...'
     });
-    
-    // 2. Start an "Infinite Silence" loop to keep the speaker happy
-    const silenceLoop = setInterval(() => {
-        res.write(SILENT_MP3_BUFFER);
-    }, 500);
 
-    // 3. When Music Assistant hijacks the speaker, the connection drops
-    req.on('close', () => {
-        clearInterval(silenceLoop);
-    });
+    const silenceLoop = setInterval(() => { res.write(SILENT_MP3_BUFFER); }, 500);
+    req.on('close', () => { clearInterval(silenceLoop); });
 
-    // 4. Trigger Music Assistant
-    const success = await utils.executeSmartPreset(ip, id);
-
-    // If no item is assigned, kill the silence loop so it doesn't hang
-    if (!success) {
-        clearInterval(silenceLoop);
-        res.end();
+    // UI extended intent: controller.js set this when the user clicked P11/P22/etc.
+    if (EXTENDED_INTENT[ip] === id) {
+        delete EXTENDED_INTENT[ip];
+        const extId = id * 11;
+        console.log(`[Bridge] ✌️ Extended intent active: P${id} → Slot ${extId} for ${ip}`);
+        const success = await utils.executeSmartPreset(ip, extId);
+        if (!success) { clearInterval(silenceLoop); res.end(); }
+        return;
     }
+
+    // Physical double-tap detection (only when feature is enabled)
+    if (getSettings().doubleTapPresets) {
+        if (PENDING_TAP[ip] && PENDING_TAP[ip].id === id) {
+            clearTimeout(PENDING_TAP[ip].timer);
+            delete PENDING_TAP[ip];
+            const extId = id * 11;
+            console.log(`[Bridge] ✌️ Double-tap confirmed: P${id} → Slot ${extId} for ${ip}`);
+            const success = await utils.executeSmartPreset(ip, extId);
+            if (!success) { clearInterval(silenceLoop); res.end(); }
+            return;
+        }
+
+        if (PENDING_TAP[ip]) {
+            clearTimeout(PENDING_TAP[ip].timer);
+            delete PENDING_TAP[ip];
+        }
+
+        console.log(`[Bridge] ⏳ First tap P${id} from ${ip} — 500ms double-tap window open...`);
+        PENDING_TAP[ip] = {
+            id,
+            timer: setTimeout(async () => {
+                delete PENDING_TAP[ip];
+                console.log(`[Bridge] ✅ Single-tap confirmed: P${id} for ${ip}`);
+                const success = await utils.executeSmartPreset(ip, id);
+                if (!success) { clearInterval(silenceLoop); res.end(); }
+            }, 500)
+        };
+        return;
+    }
+
+    // Double-tap not enabled — execute immediately
+    const success = await utils.executeSmartPreset(ip, id);
+    if (!success) { clearInterval(silenceLoop); res.end(); }
 });
 
 module.exports = router;
+module.exports.setExtendedIntent = setExtendedIntent;

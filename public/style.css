@@ -278,17 +278,50 @@ button:disabled, .btn:disabled {
 
 .presets-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 15px; }
 
-.btn-preset { 
-    background: var(--btn-bg); 
-    border: 1px solid var(--btn-border); 
-    color: var(--btn-text); 
-    padding: 8px 0; border-radius: 4px; cursor: pointer; font-size: 0.85em; 
+.btn-preset {
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    color: var(--btn-text);
+    padding: 8px 0; border-radius: 4px; cursor: pointer; font-size: 0.85em;
 }
-.btn-preset.active { 
-    background: rgba(46, 204, 113, 0.2); 
-    color: var(--accent); 
-    border-color: var(--accent); 
+.btn-preset.active {
+    background: rgba(46, 204, 113, 0.2);
+    color: var(--accent);
+    border-color: var(--accent);
 }
+.btn-preset-ext { /* same size as standard presets; class kept as semantic hook */ }
+
+/* --- PRESET PREVIEW POPUP --- */
+#preset-preview-popup {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    transform: translateY(-100%) translateY(-10px);
+    width: 220px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    pointer-events: none;
+}
+.ppp-art {
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    background-size: cover;
+    background-position: center;
+    overflow: hidden;
+    position: relative;
+}
+.ppp-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ppp-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ppp-title { font-size: 0.82em; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ppp-sub   { font-size: 0.74em; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* --- SLIDER STYLING --- */
 .slider-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
 
@@ -368,14 +401,30 @@ h3 { margin: 0; color: var(--text); font-size: 1.1em; display: flex; align-items
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); 
     gap: 15px; 
 }
-#lib-presets { 
-    display: grid; 
+#lib-presets {
+    display: grid;
     /* Restores the perfect centered 3x2 layout for your 6 physical presets */
-    grid-template-columns: repeat(3, 280px); 
-    justify-content: center; 
-    gap: 15px; 
-    margin-bottom: 25px; 
+    grid-template-columns: repeat(3, 280px);
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 25px;
 }
+/* Extended mode: 6×2 grid filling the full container width */
+#lib-presets.extended {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    grid-auto-rows: auto;
+    margin-bottom: 25px;
+}
+#lib-presets.extended .card { gap: 8px; padding: 8px; overflow: hidden; }
+#lib-presets.extended .art { width: 44px; height: 44px; flex-shrink: 0; }
+#lib-presets.extended .info { flex: 1; min-width: 0; overflow: hidden; }
+#lib-presets.extended .title { display: block; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#lib-presets.extended .sub { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+#lib-presets.extended .actions { margin-top: 4px; gap: 3px; }
+#lib-presets.extended .btn-sm { font-size: 0.65em; padding: 2px 5px; }
+#lib-presets.extended .empty-slot { justify-content: center; align-items: center; text-align: center; font-size: 10px; }
+#lib-presets.extended .preset-badge { width: 18px; height: 18px; font-size: 0.65em; top: 3px; right: 3px; }
 #lib-presets .card, #lib-favorites .card, #recents-results .card, #search-results .card,#custom-history-results .card { flex-direction: row; align-items: center; gap: 12px; padding: 12px; height: auto; }
 #lib-presets .art, #lib-favorites .art, #recents-results .art, #search-results .art, #custom-history-results .art { width: 60px; height: 60px; flex-shrink: 0; margin-bottom: 0; background: var(--art-bg); border-radius: 4px; object-fit: cover; }
 #lib-presets .info, #lib-favorites .info, #recents-results .info, #search-results .info, #custom-history-results .info { flex: 1; overflow: hidden; text-align: left; }
@@ -768,6 +817,7 @@ input:disabled + label {
 }
 
 .hidden { display: none !important; }
+
 
 /* =========================================
    9. NOW PLAYING TAB 

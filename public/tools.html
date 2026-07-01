@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 	<head>
 		<meta charset="UTF-8">
@@ -79,44 +79,34 @@
 			<div style="display: flex; flex-direction: column; gap: 20px;">
 
 				<div class="inner-panel">
-					<div style="font-weight: bold; color: var(--text); margin-bottom: 5px;">Search Menu Layout</div>
-					<div style="font-size: 0.85em; color: var(--text); opacity: 0.8; margin-bottom: 12px;">Arrange search provider tabs left to right. Hide tabs you don't want shown. The Global tab is always visible.</div>
-					<div id="sortable-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"></div>
-					<div style="display: flex; gap: 8px; flex-wrap: wrap;">
-						<button class="btn-action btn-blue" style="flex: 1;" onclick="saveSearchOrder()">💾 Save Layout</button>
-						<button class="btn-action" style="flex: 1; background: #1abc9c; color: white; border: none;" onclick="refreshProvidersFromMass()">🔄 Refresh from MASS</button>
-					</div>
-				</div>
-
-				<div class="inner-panel">
-					<div style="font-weight: bold; color: var(--text); margin-bottom: 5px;">Application Preferences</div>
+					<div style="font-weight: bold; color: var(--text); margin-bottom: 5px;">Display & Automation Settings</div>
 					<div style="font-size: 0.85em; color: var(--text); opacity: 0.8; margin-bottom: 15px;">Configure display options and background automation rules.</div>
 
-					<!-- Dark Mode — full width with divider -->
-					<label class="pref-label" style="display: flex; align-items: center; gap: 8px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border);">
-						<input type="checkbox" id="pref_darkMode" class="pref-checkbox" onchange="toggleThemeFromPref(this)"> 🌓 Dark Mode
-					</label>
-
-					<!-- Two-column automation rules -->
+					<!-- Single 3-column grid: cols 1+2 = feature toggles, col 3 = scheduled automations -->
 					<div class="prefs-grid">
 
-						<!-- Left column -->
+						<!-- Col 1 -->
 						<div style="display: flex; flex-direction: column; gap: 12px;">
-							<label class="pref-label"><input type="checkbox" id="pref_autoResume" class="pref-checkbox"> Auto-Resume Presets on Power On</label>
-							<label class="pref-label"><input type="checkbox" id="pref_autoRestart" class="pref-checkbox"> Auto-Reload DLNA & AirPlay on Connection Error</label>
-							<label class="pref-label"><input type="checkbox" id="pref_autoSync" class="pref-checkbox"> Auto-Sync Slave Volume on Grouping</label>
+							<label class="pref-label"><input type="checkbox" id="pref_darkMode" class="pref-checkbox" onchange="toggleThemeFromPref(this)"> 🌓 Dark Mode</label>
 							<label class="pref-label"><input type="checkbox" id="pref_mobileAutoSortSpeakers" class="pref-checkbox"> Auto-Sort Active Speakers (Mobile Only)</label>
+							<label class="pref-label"><input type="checkbox" id="pref_autoResume" class="pref-checkbox"> Auto-Resume Presets on Power On</label>
 						</div>
 
-						<!-- Right column -->
+						<!-- Col 2 -->
 						<div style="display: flex; flex-direction: column; gap: 12px;">
-							<div>
-								<label class="pref-label" style="display: flex; align-items: center; gap: 8px;">
-									<input type="checkbox" id="pref_scheduledSpeakerAudit" class="pref-checkbox" onchange="handleAuditToggle()">
-									Enable Speaker Audit at
-									<select id="pref_scheduledAuditHour" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:2px 4px; border-radius:4px; font-size:0.9em; width:auto;" disabled></select>
-								</label>
-							</div>
+							<label class="pref-label"><input type="checkbox" id="pref_autoSync" class="pref-checkbox"> Auto-Sync Slave Volume on Grouping</label>
+							<label class="pref-label"><input type="checkbox" id="pref_autoRestart" class="pref-checkbox"> Auto-Reload DLNA & AirPlay on Connection Error</label>
+							<label id="lbl_presetPreview" class="pref-label" style="opacity: 0.4; pointer-events: none;"><input type="checkbox" id="pref_presetPreview" class="pref-checkbox" disabled> Show Preset Preview</label>
+						</div>
+
+						<!-- Col 3: scheduled automations -->
+						<div style="display: flex; flex-direction: column; gap: 12px;">
+							<label id="lbl_doubleTapPresets" class="pref-label" style="opacity: 0.4; pointer-events: none;"><input type="checkbox" id="pref_doubleTapPresets" class="pref-checkbox" disabled> Enable Extended Presets</label>
+							<label class="pref-label" style="display: flex; align-items: center; gap: 8px;">
+								<input type="checkbox" id="pref_scheduledSpeakerAudit" class="pref-checkbox" onchange="handleAuditToggle()">
+								Enable Speaker Audit at
+								<select id="pref_scheduledAuditHour" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:2px 4px; border-radius:4px; font-size:0.9em; width:auto;" disabled></select>
+							</label>
 							<div>
 								<label class="pref-label" style="display: flex; align-items: center; gap: 8px;">
 									<input type="checkbox" id="pref_scheduledRestart" class="pref-checkbox" onchange="handleScheduledRestartToggle()">
@@ -129,16 +119,11 @@
 							</div>
 						</div>
 
-						<!-- Third column -->
-						<div style="display: flex; flex-direction: column; gap: 12px;">
-							<label class="pref-label" style="opacity: 0.4; pointer-events: none;"><input type="checkbox" id="pref_doubleTapPresets" class="pref-checkbox" disabled> Enable Double Tap Extended Presets</label>
-						</div>
-
 					</div>
 
 					<div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);">
 						<div style="font-weight: bold; color: var(--text); margin-bottom: 4px;">🔐 Restricted Access</div>
-						<div style="font-size: 0.83em; color: var(--text); opacity: 0.7; margin-bottom: 10px;">When enabled, visiting Speaker Admin and System Tools requires an access code. The lock clears when the application restarts.</div>
+						<div style="font-size: 0.83em; color: var(--text); opacity: 0.7; margin-bottom: 10px;">When enabled, Speaker Admin and System Tools require an access code. The lock clears on restart.</div>
 						<div style="display: flex; flex-direction: column; gap: 10px;">
 							<label class="pref-label"><input type="checkbox" id="pref_restrictedMode" class="pref-checkbox" onchange="document.getElementById('restrictedPinRow').style.display = this.checked ? 'flex' : 'none';"> Enable Restricted Access</label>
 							<div id="restrictedPinRow" style="display:none; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -149,7 +134,17 @@
 						</div>
 					</div>
 
-					<button class="btn-action btn-blue" style="width: 100%; margin-top: 16px;" onclick="savePreferences()">💾 Save Preferences</button>
+					<button class="btn-action btn-blue" style="width: 100%; margin-top: 16px;" onclick="savePreferences(this)">💾 Save Preferences</button>
+				</div>
+
+				<div class="inner-panel">
+					<div style="font-weight: bold; color: var(--text); margin-bottom: 5px;">Search Menu Layout</div>
+					<div style="font-size: 0.85em; color: var(--text); opacity: 0.8; margin-bottom: 12px;">Arrange search provider tabs left to right. Hide tabs you don't want shown. The Global tab is always visible.</div>
+					<div id="sortable-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"></div>
+					<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+						<button class="btn-action btn-blue" style="flex: 1;" onclick="saveSearchOrder(this)">💾 Save Layout</button>
+						<button class="btn-action" style="flex: 1; background: #1abc9c; color: white; border: none;" onclick="refreshProvidersFromMass()">🔄 Refresh from MASS</button>
+					</div>
 				</div>
 
 			</div>
@@ -290,7 +285,7 @@
 								</div>
 								
 								<div style="padding: 0 12px;">
-									<button class="primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; font-weight: bold; padding: 10px; background: #3498db; color: white; cursor: pointer; border-radius: 4px;" onclick="triggerManualAudit()">
+									<button class="primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; font-weight: bold; padding: 10px; background: #3498db; color: white; cursor: pointer; border-radius: 4px;" onclick="triggerManualAudit(this)">
 										🔍 Run Speaker Audit
 									</button>
 								</div>
@@ -301,17 +296,21 @@
 							<div>
 								<div style="font-weight: bold; color: var(--text); margin-bottom: 5px;">Music Assistant Server</div>
 								<div style="font-size: 0.85em; color: var(--text); opacity: 0.8; margin-bottom: 15px;">
-									Send a non-destructive network ping, aggressively reload protocols (temporarily stops music), or restart the container.
+									Enforce player configs, ping providers to refresh idle sockets, reload DLNA and AirPlay providers (temporarily stops music), or restart the container.
 								</div>
 							</div>
 							
 							<div style="display: flex; flex-direction: column; gap: 8px;">
+								<button class="btn" onclick="enforcePlayerConfigs(this)" style="background: #1abc9c; color: white; border: none; font-weight: bold; width: 100%; padding: 10px;">
+									⚙️ Enforce Player Configs
+								</button>
+
 								<button class="btn" onclick="rescanMass(this)" style="background: #f39c12; color: white; border: none; font-weight: bold; width: 100%; padding: 10px;">
-									🔄 Soft Rescan (Keep-Alive)
+									🔄 Ping Providers (Keep-Alive)
 								</button>
 								
 								<button class="btn" onclick="aggressiveReloadMass(this)" style="background: #d35400; color: white; border: none; font-weight: bold; width: 100%; padding: 10px;">
-									🚨 Aggressive Reload (DLNA & AirPlay)
+									🔄 Reload DLNA & AirPlay Providers
 								</button>
 								
 								<button class="primary" onclick="restartMass(this)" style="background:#e74c3c; color:white; display:flex; align-items:center; justify-content:center; gap:8px; width: 100%; border: none; padding: 10px;">
@@ -326,6 +325,31 @@
 
 
 			
+			<div id="speaker-config-card" class="card card-accent" style="margin-bottom: 25px; height:auto; display:none;">
+				<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleSpeakerConfigWindow()">
+					<h3 style="margin:0;">🔊 Speaker Configuration</h3>
+					<span id="speaker-config-chevron" style="color: var(--text-secondary); font-size: 1.2em;">▼</span>
+				</div>
+				<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">Speakers discovered at startup and saved to configuration. Use Scan Network to see what's currently visible on the network.</div>
+
+				<div id="speaker-config-container" style="display: none; margin-top: 15px;">
+					<div style="margin-bottom: 15px;">
+						<div style="font-weight: bold; color: var(--text); margin-bottom: 8px; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.05em;">Configured Speakers</div>
+						<ul id="configured-speakers-list" style="list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+							<li style="padding: 10px; background: var(--input-bg); color: var(--text-secondary); font-style: italic;">Loading...</li>
+						</ul>
+					</div>
+
+					<button class="btn-action btn-blue" style="width: 100%;" onclick="scanForSpeakers(this)">🔍 Scan Network for Speakers</button>
+
+					<div id="discovery-results" style="display: none; margin-top: 15px;">
+						<div style="font-weight: bold; color: var(--text); margin-bottom: 8px; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.05em;">Scan Results</div>
+						<ul id="discovery-results-list" style="list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;"></ul>
+						<div style="margin-top: 8px; font-size: 0.82em; color: var(--text-secondary);">On restart, the app saves any speakers found to speakers.json. To remove a speaker, edit speakers.json directly and restart.</div>
+					</div>
+				</div>
+			</div>
+
 			<div class="card card-accent-danger" style="margin-bottom: 25px; height:auto;">
 				<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleLogWindow()">
 					<h3 style="margin:0;">🖥️ Live Server Logs</h3>
@@ -685,6 +709,7 @@
 		            subReboot.checked = fullSettingsPayload.includeReboot === true;
 		            subReboot.disabled = !fullSettingsPayload.scheduledRestart;
 		            document.getElementById('pref_doubleTapPresets').checked = fullSettingsPayload.doubleTapPresets === true;
+            document.getElementById('pref_presetPreview').checked    = fullSettingsPayload.presetPreview === true;
 		            document.getElementById('pref_restrictedMode').checked = fullSettingsPayload.restrictedMode === true;
 		            document.getElementById('pref_adminPin').value = fullSettingsPayload.adminPin || '';
 		            document.getElementById('restrictedPinRow').style.display = fullSettingsPayload.restrictedMode ? 'flex' : 'none';
@@ -752,9 +777,9 @@
 		}
 
 		// 2. Save Menu Order
-		async function saveSearchOrder() {
+		async function saveSearchOrder(btn) {
 		    fullSettingsPayload.searchMenuOrder = currentSearchOrder;
-		    await pushSettingsToServer("✅ Menu order synchronized across all devices!");
+		    await pushSettingsToServer(btn);
 		}
 
 		// 3. Refresh provider tabs from Music Assistant
@@ -833,7 +858,7 @@
 		}
 
 		// 3. Save Checkboxes
-		async function savePreferences() {
+		async function savePreferences(btn) {
 		    fullSettingsPayload.autoResumePreset = document.getElementById('pref_autoResume').checked;
 		    fullSettingsPayload.autoRestartMass = document.getElementById('pref_autoRestart').checked;
 		    fullSettingsPayload.autoSyncVolume = document.getElementById('pref_autoSync').checked;
@@ -844,6 +869,7 @@
 		    fullSettingsPayload.scheduledRestartHour  = parseInt(document.getElementById('pref_scheduledRestartHour').value, 10);
 		    fullSettingsPayload.includeReboot         = document.getElementById('pref_includeReboot').checked;
 		    fullSettingsPayload.doubleTapPresets       = document.getElementById('pref_doubleTapPresets').checked;
+		    fullSettingsPayload.presetPreview          = document.getElementById('pref_presetPreview').checked;
 		    fullSettingsPayload.restrictedMode         = document.getElementById('pref_restrictedMode').checked;
 		    fullSettingsPayload.adminPin               = document.getElementById('pref_adminPin').value.trim();
 		    if (fullSettingsPayload.restrictedMode && !fullSettingsPayload.adminPin) {
@@ -851,11 +877,13 @@
 		        document.getElementById('pref_adminPin').focus();
 		        return;
 		    }
-		    await pushSettingsToServer("✅ Preferences saved successfully!");
+		    await pushSettingsToServer(btn);
 		}
 
 		// 4. The Master Save Function
-		async function pushSettingsToServer(successMessage) {
+		async function pushSettingsToServer(btn = null) {
+		    const orig = btn ? btn.innerHTML : null;
+		    if (btn) { btn.disabled = true; btn.textContent = '...'; }
 		    try {
 		        const res = await fetch('/api/admin/settings', {
 		            method: 'POST',
@@ -865,11 +893,18 @@
 		            body: JSON.stringify(fullSettingsPayload)
 		        });
 
-		        if (res.ok)
-		            alert(successMessage);
-		        else
+		        if (res.ok) {
+		            if (btn) {
+		                btn.textContent = '✅ Saved!';
+		                btn.classList.add('btn-success');
+		                setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('btn-success'); btn.disabled = false; }, 3000);
+		            }
+		        } else {
+		            if (btn) { btn.innerHTML = orig; btn.disabled = false; }
 		            alert("❌ Failed to save to server.");
+		        }
 		    } catch (e) {
+		        if (btn) { btn.innerHTML = orig; btn.disabled = false; }
 		        alert("❌ Network Error: " + e.message);
 		    }
 		}
@@ -1151,7 +1186,7 @@ async function saveScheduledPlays(silent = false) {
 		            body: JSON.stringify(fullSettingsPayload)
 		        }).catch(e => console.error('[ScheduledPlay] Save failed:', e.message));
 		    } else {
-		        await pushSettingsToServer('✅ Scheduled plays saved.');
+		        await pushSettingsToServer();
 		    }
 		}
 		// =====================================================================
@@ -1244,7 +1279,7 @@ async function saveScheduledPlays(silent = false) {
 		            body: JSON.stringify(fullSettingsPayload)
 		        }).catch(e => console.error('[PresetWatchdog] Save failed:', e.message));
 		    } else {
-		        await pushSettingsToServer('✅ Preset watchdog settings saved.');
+		        await pushSettingsToServer();
 		    }
 		}
 
@@ -1257,12 +1292,10 @@ async function saveScheduledPlays(silent = false) {
 		            body: JSON.stringify({ ip })
 		        });
 		        if (!res.ok) throw new Error('Server rejected the request.');
-		        const dev = watchdogDevices.find(d => d.ip === ip);
-		        const label = dev ? `${dev.name} (${ip})` : ip;
-		        alert(`✅ Preset push initiated for ${label}. Check server logs for details.`);
+		        if (btn) btn.textContent = '✅ Pushed';
+		        setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '🔁 Push Now'; } }, 3000);
 		    } catch (e) {
 		        alert('❌ Failed to push presets: ' + e.message);
-		    } finally {
 		        if (btn) { btn.disabled = false; btn.textContent = '🔁 Push Now'; }
 		    }
 		}
@@ -1272,6 +1305,8 @@ async function saveScheduledPlays(silent = false) {
 		    try {
 		        const statusRes = await fetch('/api/status');
 		        const devices = await statusRes.json();
+
+		        configuredSpeakers = devices;
 
 		        const allOptions = devices.filter(d => d.online).map(d => `<option value="${d.ip}">${d.name} (${d.ip})</option>`).join('');
 		        const usbOption = `<option value="203.0.113.1">🔌 USB Cable / Initial Wi-Fi Setup (203.0.113.1)</option>`;
@@ -1296,6 +1331,26 @@ async function saveScheduledPlays(silent = false) {
 		        initScheduledPlays(devices);
 		        initPresetWatchdogUI(devices);
 
+		        // V4 speaker config card — hidden unless ENABLE_V4 is true on the server
+		        try {
+		            const v4Res = await fetch('/api/admin/v4-speakers');
+		            const v4Data = await v4Res.json();
+		            if (v4Data.enabled) {
+		                enableV4 = true;
+		                v4Speakers = v4Data.speakers;
+		                document.getElementById('speaker-config-card').style.display = '';
+		                const dtLabel = document.getElementById('lbl_doubleTapPresets');
+		                const dtChk   = document.getElementById('pref_doubleTapPresets');
+		                if (dtLabel) { dtLabel.style.opacity = ''; dtLabel.style.pointerEvents = ''; }
+		                if (dtChk)   dtChk.disabled = false;
+
+		                const ppLabel = document.getElementById('lbl_presetPreview');
+		                const ppChk   = document.getElementById('pref_presetPreview');
+		                if (ppLabel) { ppLabel.style.opacity = ''; ppLabel.style.pointerEvents = ''; }
+		                if (ppChk)   ppChk.disabled = false;
+		            }
+		        } catch (e) { /* card stays hidden */ }
+
 		    } catch (e) {
 		        console.error("Failed to load tools / status", e);
 		        // Still boot the stereo UI with an empty array so dummies inject
@@ -1307,7 +1362,7 @@ async function saveScheduledPlays(silent = false) {
 
 		// --- EXISTING FUNCTIONS ---
 
-		// LEVEL 1: Soft Rescan (The Ping)
+		// LEVEL 1: Ping Providers (Keep-Alive)
 		async function rescanMass(btn) {
 		    const orig = btn.innerText;
 		    btn.innerText = "Pinging...";
@@ -1338,9 +1393,9 @@ async function saveScheduledPlays(silent = false) {
 		    }, 3000);
 		}
 
-		// LEVEL 2: Aggressive Provider Reload (DLNA + AirPlay)
+		// LEVEL 2: Provider Reload (DLNA + AirPlay)
 		async function aggressiveReloadMass(btn) {
-		    if (!confirm("Forcefully restart the DLNA and AirPlay providers?\n⚠️ Warning: Active audio streams may momentarily stop."))
+		    if (!confirm("Reload DLNA and AirPlay providers?\n⚠️ Warning: Active audio streams may momentarily stop."))
 		        return;
 		    const orig = btn.innerText;
 		    btn.innerText = "Reloading DLNA...";
@@ -1396,7 +1451,6 @@ async function saveScheduledPlays(silent = false) {
 		        });
 		        const data = await res.json();
 		        if (data.success) {
-		            alert("Restart Command Sent!");
 		            btn.innerText = "✅ Command Sent";
 		        } else {
 		            alert("Error: " + (data.error || "Unknown Error"));
@@ -1410,6 +1464,22 @@ async function saveScheduledPlays(silent = false) {
 		        btn.innerText = orig;
 		        btn.disabled = false;
 		    }, 5000);
+		}
+
+		async function enforcePlayerConfigs(btn) {
+		    const orig = btn.innerText;
+		    btn.innerText = "Running — check logs...";
+		    btn.disabled = true;
+		    try {
+		        await fetch('/api/admin/enforce_player_configs', { method: 'POST' });
+		        btn.innerText = "✅ Sent";
+		    } catch (e) {
+		        btn.innerText = "❌ Error";
+		    }
+		    setTimeout(() => {
+		        btn.innerText = orig;
+		        btn.disabled = false;
+		    }, 4000);
 		}
 
 		// NORMALIZED restartHybrid function
@@ -1455,7 +1525,7 @@ async function saveScheduledPlays(silent = false) {
 		            },
 		            body: JSON.stringify(payload)
 		        });
-		        alert(isForceMode ? "Force sequence initiated! Check server console." : "Restart command sent!");
+		        btn.innerText = '✅ Sent';
 		        if (!isForceMode)
 		            setTimeout(() => {
 		                window.location.reload();
@@ -1480,21 +1550,25 @@ async function saveScheduledPlays(silent = false) {
 		    }
 		}
 
-		async function triggerManualAudit() {
+		async function triggerManualAudit(btn) {
 		    if (!confirm("Execute a manual Speaker Preset Audit now? Any speakers missing or with non-Hybrid presets will have their presets pushed directly — no reboot required."))
 		        return;
 
+		    const orig = btn ? btn.innerText : '';
+		    if (btn) { btn.disabled = true; btn.innerText = '⏳ Running...'; }
+
 		    try {
-		        const res = await fetch('/api/admin/force_audit', {
-		            method: 'POST'
-		        });
+		        const res = await fetch('/api/admin/force_audit', { method: 'POST' });
 		        if (res.ok) {
-		            alert("✅ Speaker Audit initiated in the background. Check server logs for details.");
+		            if (btn) btn.innerText = '✅ Sent';
+		            setTimeout(() => { if (btn) { btn.innerText = orig; btn.disabled = false; } }, 4000);
 		        } else {
 		            alert("❌ Server rejected the audit request.");
+		            if (btn) { btn.innerText = orig; btn.disabled = false; }
 		        }
 		    } catch (e) {
 		        alert("❌ Failed to reach the server: " + e.message);
+		        if (btn) { btn.innerText = orig; btn.disabled = false; }
 		    }
 		}
 
@@ -1647,6 +1721,90 @@ async function saveScheduledPlays(silent = false) {
 		// ==========================================
 		// ST10 STEREO PAIRING UI LOGIC
 		// ==========================================
+		// ==========================================
+		// SPEAKER CONFIGURATION UI
+		// ==========================================
+		let configuredSpeakers = [];
+		let enableV4 = false;
+		let v4Speakers = [];
+
+		async function toggleSpeakerConfigWindow() {
+			const container = document.getElementById('speaker-config-container');
+			const chevron = document.getElementById('speaker-config-chevron');
+			if (container.style.display === 'none') {
+				container.style.display = 'block';
+				chevron.innerText = '▲';
+				if (enableV4) {
+					try {
+						const res = await fetch('/api/admin/v4-speakers');
+						const data = await res.json();
+						if (data.enabled) v4Speakers = data.speakers;
+					} catch (e) { /* use cached */ }
+				}
+				renderConfiguredSpeakers();
+			} else {
+				container.style.display = 'none';
+				chevron.innerText = '▼';
+			}
+		}
+
+		function renderConfiguredSpeakers() {
+			const list = document.getElementById('configured-speakers-list');
+			if (!list) return;
+			const speakers = enableV4 ? v4Speakers : configuredSpeakers;
+			if (!speakers || speakers.length === 0) {
+				list.innerHTML = `<li style="padding:10px; background:var(--input-bg); color:var(--text-secondary); font-style:italic;">No speakers found. Run a Scan to search the network, or restart the container to trigger auto-discovery.</li>`;
+				return;
+			}
+			list.innerHTML = speakers.map(d => `
+				<li style="display:flex; align-items:center; gap:10px; padding:10px; background:var(--input-bg); border-bottom:1px solid var(--border);">
+					<span style="font-size:0.9em;">${enableV4 ? '🔊' : (d.online ? '🟢' : '⚫')}</span>
+					<span style="color:var(--text); font-weight:bold;">${d.name}</span>
+					<span style="color:var(--text-secondary); font-family:monospace; font-size:0.85em;">${d.ip}</span>
+					${d.deviceId ? `<span style="color:var(--text-secondary); font-family:monospace; font-size:0.75em; opacity:0.7;">${d.deviceId}</span>` : ''}
+					${d.type ? `<span style="margin-left:auto; font-size:0.8em; color:var(--text-secondary); white-space:nowrap;">${d.type}</span>` : ''}
+				</li>
+			`).join('');
+		}
+
+		async function scanForSpeakers(btn) {
+			const orig = btn.innerText;
+			btn.innerText = '⏳ Scanning... (this takes ~5 seconds)';
+			btn.disabled = true;
+
+			const resultsDiv = document.getElementById('discovery-results');
+			const resultsList = document.getElementById('discovery-results-list');
+
+			try {
+				const res = await fetch('/api/admin/discover');
+				if (!res.ok) throw new Error('Server returned an error.');
+				const speakers = await res.json();
+
+				resultsDiv.style.display = 'block';
+
+				if (speakers.length === 0) {
+					resultsList.innerHTML = '<li style="padding:10px; background:var(--input-bg); color:var(--text-secondary); font-style:italic;">No speakers found. Check that your speakers are powered on and on the same network.</li>';
+				} else {
+					resultsList.innerHTML = speakers.map(s => `
+						<li style="display:flex; align-items:center; gap:10px; padding:10px; background:var(--input-bg); border-bottom:1px solid var(--border);">
+							<span>🟢</span>
+							<span style="color:var(--text); font-weight:bold;">${s.name}</span>
+							<span style="color:var(--text-secondary); font-family:monospace; font-size:0.85em;">${s.ip}</span>
+							${s.deviceId ? `<span style="color:var(--text-secondary); font-family:monospace; font-size:0.75em; opacity:0.7;">${s.deviceId}</span>` : ''}
+							${s.type ? `<span style="margin-left:auto; font-size:0.8em; color:var(--text-secondary); white-space:nowrap;">${s.type}</span>` : ''}
+						</li>
+					`).join('');
+				}
+			} catch (e) {
+				resultsDiv.style.display = 'block';
+				resultsList.innerHTML = `<li style="padding:10px; background:var(--input-bg); color:#e74c3c;">❌ Scan failed: ${e.message}</li>`;
+			}
+
+			btn.innerText = orig;
+			btn.disabled = false;
+		}
+		// ==========================================
+
 		let st10Speakers = [];
 		let activePairs = []; // Track saved pairs to disable them in dropdowns
 
@@ -1797,7 +1955,7 @@ async function saveScheduledPlays(silent = false) {
 		            fetch('/api/admin/reboot_speaker', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip: rightIp }) });
 		        }
 		            
-		            alert("✅ Pair saved! Reboot Commands sent to both speakers.\n\nThe network providers will aggressively reload in 90 seconds.");
+		            alert("✅ Pair saved. Reboot commands sent to both speakers.\n\nSpeakers will be back online in approximately 90 seconds.");
 
 		            nameInput.value = '';
 		            leftSelect.value = '';
@@ -1830,7 +1988,7 @@ async function saveScheduledPlays(silent = false) {
 		            fetch('/api/admin/reboot_speaker', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ip: rightIp }) });
 		        }
 		        
-		        alert("✅ Pair deleted! Telnet Reboot Commands sent to both speakers.\n\nThey will return to standalone mode shortly.");
+		        alert("✅ Pair deleted. Reboot commands sent to both speakers.\n\nSpeakers will be back online in approximately 90 seconds.");
 		        fetchStereoPairs();
 		    } catch (e) {
 		        alert("❌ Error deleting pair.");

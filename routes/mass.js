@@ -386,23 +386,37 @@ async function resolveTargetPlayer(target) {
 // SECTION 5: HARDWARE & LOW-LEVEL HELPERS
 // =======================================================================
 
-async function getToken() {
+// Token cache — one login per 24h; re-auth on explicit forceRefresh (triggered on 401)
+let _cachedToken = null;
+let _tokenExpiry  = 0;
+
+async function getToken(forceRefresh = false) {
+    if (!forceRefresh && _cachedToken && Date.now() < _tokenExpiry - 60_000) {
+        return _cachedToken;
+    }
+
+    const reason = forceRefresh ? 'token rejected by MASS (re-auth)' : 'no valid cached token';
+    console.log(`[MASS] 🔐 Authenticating with Music Assistant (${reason})...`);
+
     try {
-        // Use the explicit REST endpoint defined in the OpenAPI spec
-        const authUrl = `http://${MASS_IP}:${MASS_PORT}/auth/login`;
-        
-        const res = await axios.post(authUrl, {
-            credentials: { 
-                username: MASS_USERNAME, 
-                password: MASS_PASSWORD 
-            }
+        const res = await axios.post(`http://${MASS_IP}:${MASS_PORT}/auth/login`, {
+            credentials: { username: MASS_USERNAME, password: MASS_PASSWORD }
         }, { timeout: 8000 });
-        
-        // The OpenAPI spec returns the token here:
-        return res.data.token || res.data.access_token || res.data.sid || null;
-    } catch (e) { 
-        console.error(`[MASS] Authentication Error: ${e.message}`);
-        return null; 
+
+        _cachedToken = res.data.token || res.data.access_token || res.data.sid || null;
+        _tokenExpiry  = Date.now() + 24 * 60 * 60 * 1000;
+
+        if (_cachedToken) {
+            console.log(`[MASS] ✅ Auth token ${forceRefresh ? 're-acquired' : 'acquired'} — cached for 24h.`);
+        } else {
+            console.error(`[MASS] ❌ Auth request succeeded but response contained no token. Check MASS API format.`);
+        }
+        return _cachedToken;
+    } catch (e) {
+        _cachedToken = null;
+        _tokenExpiry  = 0;
+        console.error(`[MASS] ❌ Authentication failed: ${e.message}`);
+        return null;
     }
 }
 
@@ -453,42 +467,60 @@ async function ensureSpeakerOn(ip) {
 // Sends a JSON-RPC command to Music Assistant with retry logic.
 // Handles timeouts, socket disconnects, and kickstarting stalled speakers.
 async function sendWithRetry(playerId, playerIp, command, args, options = {}) {
-    const token = await getToken();
-    if (!token) return false;
+    let token = await getToken();
+    if (!token) {
+        console.error(`[MASS] ❌ sendWithRetry: No auth token available. Cannot execute "${command}".`);
+        return false;
+    }
 
-    const headers = { 'Authorization': `Bearer ${token}` };
+    let headers = { 'Authorization': `Bearer ${token}` };
     const MAX_RETRIES = (options.retries !== undefined) ? options.retries : 2;
     const ALLOW_KICKSTART = (options.kickstart !== undefined) ? options.kickstart : true;
     const FORCE_SUCCESS = (options.forceSuccess !== undefined) ? options.forceSuccess : false;
-    
+
     let attempt = 1;
-    let lastStatus = null; 
+    let lastStatus = null;
 
     while (attempt <= MAX_RETRIES) {
         try {
             if (attempt > 1) console.log(`   🔄 Retry ${attempt}/${MAX_RETRIES} for ${command}...`);
             await client.post(`${BASE_URL}`, { command, args, message_id: Date.now() }, { headers });
-            
+
             isMassHealthy = true; // ✅ SOCKET IS HEALTHY
             return true;
-            
+
         } catch (e) {
-            lastStatus = e.response?.status; 
+            lastStatus = e.response?.status;
             const isTimeout = e.code === 'ECONNABORTED' || e.message.includes('timeout');
-            
+
             // --- DYNAMIC ERROR EXTRACTOR ---
             // Extract the exact error message text from Music Assistant
             let errorText = e.message; // Fallback to generic Node error
             if (e.response && e.response.data) {
                 errorText = typeof e.response.data === 'object' ? JSON.stringify(e.response.data) : String(e.response.data);
             }
-            
+
             // Print exactly what Music Assistant is complaining about
             if (lastStatus) {
                 console.error(`\n❌ [ATTEMPT ${attempt}] MASS HTTP ${lastStatus} on ${command}`);
                 console.error(`   Message: ${errorText}`);
             }
-             
+
+            // 401 = cached token was rejected (MASS restarted or token revoked).
+            // Re-authenticate once and retry the command without burning the retry counter.
+            if (lastStatus === 401) {
+                console.warn(`[MASS] ⚠️ HTTP 401 on "${command}" — cached token rejected. Re-authenticating...`);
+                const newToken = await getToken(true);
+                if (!newToken) {
+                    console.error(`[MASS] ❌ Re-authentication failed. Aborting "${command}".`);
+                    return false;
+                }
+                token   = newToken;
+                headers = { 'Authorization': `Bearer ${token}` };
+                console.log(`[MASS] 🔄 Re-auth successful. Retrying "${command}"...`);
+                continue; // retry with fresh token, attempt counter unchanged
+            }
+
 			// If MA throws a 500 error, cannot tell if it's an Empty Playlist or a Dead Socket.
             // Gracefully abort and trigger the UI banner
             if (lastStatus === 500 && (errorText.toLowerCase().includes('playable') || errorText.toLowerCase().includes('found') || errorText.toLowerCase().includes('empty') || errorText.toLowerCase().includes('internal server error') || errorText.toLowerCase().includes('available'))) {
@@ -496,10 +528,10 @@ async function sendWithRetry(playerId, playerIp, command, args, options = {}) {
                 console.error(`[MASS] 🚫 Cause: Invalid Media (Empty/Dead Stream) OR a Dropped DLNA Socket.`);
                 console.error(`[MASS] 🚨 Marking MASS Unhealthy and triggering UI Banner.\n`);
                 isMassHealthy = false; // ✅ THIS TRIGGERS THE UI BANNER!
-				playHealthWarning(playerIp); 
-                return false; 
+				playHealthWarning(playerIp);
+                return false;
             }
-            
+
             // Handles connection errors (500, Reset, Timeout).
             if (lastStatus === 500 || e.code === 'ECONNRESET' || isTimeout) {
                 
@@ -566,20 +598,33 @@ async function executeCommand(target, command, options = {}) {
 }
 
 
-// Replace your existing sendAdminCommand in mass.js
 async function sendAdminCommand(command, args = {}) {
-    const token = await getToken();
-    if (!token) throw new Error("MASS Auth token unavailable");
-    
-    const res = await client.post(`${BASE_URL}`, { 
-        command: command, args: args, message_id: Date.now() 
-    }, { headers: { 'Authorization': `Bearer ${token}` } });
+    let token = await getToken();
+    if (!token) throw new Error(`[MASS] Auth token unavailable — cannot execute admin command "${command}"`);
 
-    // 🚨 THE FIX: Catch MA JSON-RPC errors hiding inside HTTP 200 OK responses
-    if (res.data && res.data.error) {
-        throw new Error(res.data.error.message || JSON.stringify(res.data.error));
+    const doRequest = async (tok) => {
+        const res = await client.post(`${BASE_URL}`, {
+            command, args, message_id: Date.now()
+        }, { headers: { 'Authorization': `Bearer ${tok}` } });
+        // 🚨 Catch MA JSON-RPC errors hiding inside HTTP 200 OK responses
+        if (res.data && res.data.error) {
+            throw new Error(res.data.error.message || JSON.stringify(res.data.error));
+        }
+        return res.data;
+    };
+
+    try {
+        return await doRequest(token);
+    } catch (e) {
+        if (e.response?.status === 401) {
+            console.warn(`[MASS] ⚠️ HTTP 401 on admin command "${command}" — cached token rejected. Re-authenticating...`);
+            token = await getToken(true);
+            if (!token) throw new Error(`[MASS] Re-authentication failed — cannot execute admin command "${command}"`);
+            console.log(`[MASS] 🔄 Re-auth successful. Retrying admin command "${command}"...`);
+            return await doRequest(token);
+        }
+        throw e;
     }
-    return res.data;
 }
 
 // =======================================================================
@@ -612,7 +657,7 @@ async function playHealthWarning(speakerIp) {
 async function forceRescan(aggressive = false, targetProvider = 'dlna') {
     try {
         if (aggressive) {
-            console.log(`[MASS] 🚨 Aggressive Recovery: Reloading the ${targetProvider.toUpperCase()} provider...`);
+            console.log(`[MASS] 🔄 Reloading MA ${targetProvider.toUpperCase()} Provider...`);
             await sendAdminCommand('config/providers/reload', { instance_id: targetProvider });
 			// ==============================================================
             // 🧹 NEW: FLUSH THE RAM CACHES
@@ -627,7 +672,7 @@ async function forceRescan(aggressive = false, targetProvider = 'dlna') {
             return true;
         }
 
-        console.log(`[MASS] 🔄 Sending Soft Rescan (players/all) ping to Music Assistant...`);
+        console.log(`[MASS] 🔄 Sending keep-alive ping to MA (players/all)...`);
         await sendAdminCommand('players/all', {});
         return true;
         

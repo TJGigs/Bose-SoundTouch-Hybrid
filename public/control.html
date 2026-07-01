@@ -513,6 +513,17 @@
           const dis = (val) => val ? 'disabled' : ''; // Utility for HTML attributes
           const cls = (val) => val ? 'btn-disabled' : ''; // Utility for CSS classes
 
+          const extPresetsHtml = (() => {
+              if (!globalSettings.doubleTapPresets) return '';
+              const btns = [11, 22, 33, 44, 55, 66].map(n => {
+                  const isActive = (ui.presetNum === n);
+                  const pClick = `onmousedown="uiPreset('${d.ip}', ${n})"`;
+                  const hover  = `onmouseenter="showPresetPreview(this,'${d.ip}',${n})" onmouseleave="hidePresetPreview()"`;
+                  return `<button class="btn-preset btn-preset-ext ${isActive ? 'active' : ''} ${cls(ui.presetDisabled)}" ${dis(ui.presetDisabled)} ${pClick} ${hover}>${n}</button>`;
+              }).join('');
+              return `<div class="presets-row extended-presets-row">${btns}</div>`;
+          })();
+
           return `
         <div class="card" id="card-${d.ip}">
           <div class="header"><h3>${d.name} <img src="images/bose_icon.png" style="height:16px; width:auto; opacity:0.8;" alt="Bose"></h3><span class="status ${isGroupMaster || isGroupMember ? 'master' : ''}">${statusText}</span></div>
@@ -532,9 +543,11 @@
             ${[1, 2, 3, 4, 5, 6].map(n => {
               const isActive = (ui.presetNum === n);
               const pClick = `onmousedown="uiPreset('${d.ip}', ${n})"`;
-              return `<button class="btn-preset ${isActive ? 'active' : ''} ${cls(ui.presetDisabled)}" ${dis(ui.presetDisabled)} ${pClick}>${n}</button>`;
+              const hover  = `onmouseenter="showPresetPreview(this,'${d.ip}',${n})" onmouseleave="hidePresetPreview()"`;
+              return `<button class="btn-preset ${isActive ? 'active' : ''} ${cls(ui.presetDisabled)}" ${dis(ui.presetDisabled)} ${pClick} ${hover}>${n}</button>`;
           }).join('')}
           </div>
+          ${extPresetsHtml}
 
           <div class="slider-container ${cls(ui.volDisabled)}" style="position:relative;">
             <span style="font-size:0.8em; color:var(--text-secondary)">VOL</span>
@@ -1076,8 +1089,76 @@
       }, 1500);
   }
 
+  // ======================================================
+  // PRESET PREVIEW (desktop hover only, gated by presetPreview setting)
+  // ======================================================
+  let presetMap = {}; // key: "ip_slot" → library item
+
+  async function loadPresetMap() {
+      try {
+          const res = await fetch('/api/manager/library');
+          if (!res.ok) return;
+          const items = await res.json();
+          presetMap = {};
+          for (const item of items) {
+              if (item.slot > 0) {
+                  if (item.speakerIp) {
+                      // Speaker-specific preset — takes priority in lookup
+                      presetMap[item.speakerIp + '_' + item.slot] = item;
+                  } else {
+                      // Shared/global preset — used as fallback when no speaker-specific entry exists
+                      presetMap['_' + item.slot] = item;
+                  }
+              }
+          }
+      } catch (e) { /* silently ignore */ }
+  }
+
+  function showPresetPreview(el, ip, slot) {
+      if (!globalSettings.presetPreview) return;
+      if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+      const item = presetMap[ip + '_' + slot] || presetMap['_' + slot];
+      if (!item) return;
+
+      let popup = document.getElementById('preset-preview-popup');
+      if (!popup) {
+          popup = document.createElement('div');
+          popup.id = 'preset-preview-popup';
+          document.body.appendChild(popup);
+      }
+
+      const fallbackClass = (item.type === 'custom_url' || item.type === 'radio') ? 'art-globe' : 'art-blank';
+      const artHtml = item.image && item.image !== 'custom_url'
+          ? `<div class="ppp-art ${fallbackClass}"><img src="${item.image}" onerror="this.style.display='none'"></div>`
+          : `<div class="ppp-art ${fallbackClass}"></div>`;
+
+      popup.innerHTML = `
+          ${artHtml}
+          <div class="ppp-info">
+              <span class="ppp-title">${item.name || ''}</span>
+              <span class="ppp-sub">${item.subtitle || item.type || ''}</span>
+          </div>`;
+
+      popup.style.display = 'flex';
+
+      const rect = el.getBoundingClientRect();
+      const popW = 220;
+      let left = rect.left + rect.width / 2 - popW / 2;
+      if (left < 8) left = 8;
+      if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+      const top = rect.top - 8; // will be shifted up by CSS transform
+
+      popup.style.left = left + 'px';
+      popup.style.top  = top + 'px';
+  }
+
+  function hidePresetPreview() {
+      const popup = document.getElementById('preset-preview-popup');
+      if (popup) popup.style.display = 'none';
+  }
+
   // Initial Load and Interval Setup
-  loadSettings();
+  loadSettings().then(loadPresetMap);
   loadStatus();
   setInterval(loadStatus, 2000);
   console.log("Bose Hybrid Controller - BACKEND-DRIVEN PAUSE");

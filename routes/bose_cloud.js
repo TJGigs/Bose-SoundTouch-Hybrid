@@ -36,22 +36,68 @@ const sendBoseEnvelope = (res, bodyContent) => {
 // ============================================================================
 const handshakeTracker = {};
 
+// 10-second rolling buffer of pre-BMX endpoint hits per IP.
+// Captures steps (sourceProviders, presets) that arrive before power_on/BMX
+// initializes the tracker — fixes false INCOMPLETE on parallel firmware threads.
+const preBmxBuffer = {};
+
+function notePreBmxStep(ip, flag) {
+    if (!preBmxBuffer[ip]) preBmxBuffer[ip] = [];
+    const now = Date.now();
+    preBmxBuffer[ip] = preBmxBuffer[ip].filter(e => now - e.ts < 10000);
+    preBmxBuffer[ip].push({ flag, ts: now });
+}
+
+function applyPreBmxBuffer(ip) {
+    if (!preBmxBuffer[ip]) return;
+    const now = Date.now();
+    for (const entry of preBmxBuffer[ip]) {
+        if (now - entry.ts < 10000 && handshakeTracker[ip]) {
+            if (!handshakeTracker[ip][entry.flag]) {
+                handshakeTracker[ip][entry.flag] = true;
+                handshakeTracker[ip].timestamps[entry.flag] = entry.ts - handshakeTracker[ip].initTs;
+            }
+        }
+    }
+    delete preBmxBuffer[ip];
+}
+
+function initTracker(ip) {
+    if (handshakeTracker[ip]) return;
+    const now = Date.now();
+    const invalidSourceTs = global.PRE_BMX_SIGNAL?.[ip];
+    const invalidSourceBeforeBmx = invalidSourceTs && (now - invalidSourceTs < 10000);
+    if (invalidSourceBeforeBmx) delete global.PRE_BMX_SIGNAL[ip];
+    handshakeTracker[ip] = {
+        powerOn: false, bmx: false, sourceProviders: false, presets: false,
+        invalidSourceBeforeBmx: !!invalidSourceBeforeBmx,
+        initTs: now,
+        timestamps: { powerOn: null, bmx: null, sourceProviders: null, presets: null }
+    };
+    setTimeout(() => evaluateHandshake(ip), 30000);
+    utils.queryPresetsForSpeaker(ip, 'before');
+    applyPreBmxBuffer(ip);
+}
+
 function buildHandshakeDiagnosis(state) {
-    const { powerOn, bmx, sourceProviders, presets } = state;
+    const { powerOn, bmx, sourceProviders, presets, invalidSourceBeforeBmx } = state;
+    const invalidSourceNote = invalidSourceBeforeBmx
+        ? ' Speaker reported INVALID_SOURCE before cloud contact — firmware had active but invalid streaming context (NVRAM clear pattern).'
+        : '';
     if (!bmx && !sourceProviders && !presets) {
-        return 'Power-on signal received but BMX registry was never requested. The cloud emulator may not have been reachable at the time of power-on, or the speaker aborted before contacting it.';
+        return `Power-on signal received but BMX registry was never requested. The cloud emulator may not have been reachable at the time of power-on, or the speaker aborted before contacting it.${invalidSourceNote}`;
     }
     if (bmx && !sourceProviders && !presets) {
         return powerOn
-            ? 'Power-on with stalled handshake. BMX registry delivered but speaker stopped before requesting source providers or account profile.'
-            : 'BMX-only re-validation. Speaker contacted cloud for service routing but never requested source providers or account profile. Firmware likely cleared NVRAM expecting full cloud re-delivery that did not complete.';
+            ? `Power-on with stalled handshake. BMX registry delivered but speaker stopped before requesting source providers or account profile.${invalidSourceNote}`
+            : `BMX-only re-validation. Speaker contacted cloud for service routing but never requested source providers or account profile. Firmware likely cleared NVRAM expecting full cloud re-delivery that did not complete.${invalidSourceNote}`;
     }
     if (bmx && sourceProviders && !presets) {
         return powerOn
-            ? 'Partial handshake following power-on. Source providers delivered but account profile (preset injection) was not requested within the 30s window.'
-            : 'Partial re-validation. BMX and source providers delivered but account profile (preset injection) was not requested.';
+            ? `Partial handshake following power-on. Source providers delivered but account profile (preset injection) was not requested within the 30s window.${invalidSourceNote}`
+            : `Partial re-validation. BMX and source providers delivered but account profile (preset injection) was not requested.${invalidSourceNote}`;
     }
-    return 'Incomplete handshake — one or more required steps did not complete within the 30s evaluation window.';
+    return `Incomplete handshake — one or more required steps did not complete within the 30s evaluation window.${invalidSourceNote}`;
 }
 
 async function evaluateHandshake(ip) {
@@ -61,11 +107,19 @@ async function evaluateHandshake(ip) {
     const isSuccess = state.presets && state.sourceProviders && state.bmx;
     const stepLine = `PowerOn: ${state.powerOn ? '✅' : '❌'}  BMX: ${state.bmx ? '✅' : '❌'}  SourceProviders: ${state.sourceProviders ? '✅' : '❌'}  Account/Presets: ${state.presets ? '✅' : '❌'}`;
 
+    // Build timing_ms: ms from tracker init to each step (null = never fired).
+    const timing_ms = {};
+    for (const key of ['powerOn', 'bmx', 'sourceProviders', 'presets']) {
+        timing_ms[key] = state.timestamps[key] ?? null;
+    }
+
     if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
         utils.appendWatchdogLog(ip, {
-            type:    'handshake_result',
-            success: isSuccess,
-            steps:   { powerOn: state.powerOn, bmx: state.bmx, sourceProviders: state.sourceProviders, presets: state.presets }
+            type:                  'handshake_result',
+            success:               isSuccess,
+            steps:                 { powerOn: state.powerOn, bmx: state.bmx, sourceProviders: state.sourceProviders, presets: state.presets },
+            invalidSourceBeforeBmx: state.invalidSourceBeforeBmx,
+            timing_ms
         });
     }
 
@@ -287,28 +341,18 @@ router.get('/', (req, res) => {
 router.post('/streaming/support/power_on', (req, res) => {
     const reqIp = getIp(req);
     if (isDebug()) console.log(`[Bose Cloud] ⚡ Power On Signal Handled for ${reqIp}`);
-    res.send('<status>success</status>'); 
-	
-    // Whichever event fires first (BMX or power_on) initializes the tracker and starts
-    // the 30s evaluation window. Each handler then sets its own flag independently so
-    // neither ordering loses a flag.
-    if (!handshakeTracker[reqIp]) {
-        handshakeTracker[reqIp] = { powerOn: false, bmx: false, sourceProviders: false, presets: false };
-        setTimeout(() => evaluateHandshake(reqIp), 30000);
-        utils.queryPresetsForSpeaker(reqIp, 'before');
-    }
+    res.send('<status>success</status>');
+    initTracker(reqIp);
     handshakeTracker[reqIp].powerOn = true;
+    handshakeTracker[reqIp].timestamps.powerOn = Date.now() - handshakeTracker[reqIp].initTs;
 });
 
 // 2. BMX Registry (Cloud Routing)
 router.get('/bmx/registry/v1/services', (req, res) => {
     const reqIp = getIp(req);
-    if (!handshakeTracker[reqIp]) {
-        handshakeTracker[reqIp] = { powerOn: false, bmx: false, sourceProviders: false, presets: false };
-        setTimeout(() => evaluateHandshake(reqIp), 30000);
-        utils.queryPresetsForSpeaker(reqIp, 'before');
-    }
+    initTracker(reqIp);
     handshakeTracker[reqIp].bmx = true;
+    handshakeTracker[reqIp].timestamps.bmx = Date.now() - handshakeTracker[reqIp].initTs;
     if (isDebug()) console.log(`[Bose Cloud] ☁️ Delivered BMX Registry to ${reqIp}`);
     res.set('Content-Type', 'application/json');
     
@@ -342,7 +386,11 @@ router.get('/streaming/sourceproviders', (req, res) => {
     const reqIp = getIp(req);
 	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
     //const reqIp = req.query.ip || getIp(req);
-    if (handshakeTracker[reqIp]) handshakeTracker[reqIp].sourceProviders = true;
+    notePreBmxStep(reqIp, 'sourceProviders');
+    if (handshakeTracker[reqIp] && !handshakeTracker[reqIp].sourceProviders) {
+        handshakeTracker[reqIp].sourceProviders = true;
+        handshakeTracker[reqIp].timestamps.sourceProviders = Date.now() - handshakeTracker[reqIp].initTs;
+    }
     console.log(`[Bose Cloud] 📋 Delivered SourceProviders to ${reqIp}`);
     res.send(generateSourceProviders(reqIp));
 });
@@ -365,7 +413,11 @@ router.get('/streaming/account/:id/full', async (req, res) => {
         return res.status(503).send("Speaker Busy");
     }
 
-    if (handshakeTracker[reqIp]) handshakeTracker[reqIp].presets = true;
+    notePreBmxStep(reqIp, 'presets');
+    if (handshakeTracker[reqIp] && !handshakeTracker[reqIp].presets) {
+        handshakeTracker[reqIp].presets = true;
+        handshakeTracker[reqIp].timestamps.presets = Date.now() - handshakeTracker[reqIp].initTs;
+    }
     res.send(generateAccountXml(reqIp, accountId, identity.deviceId, identity.serialNumber, identity.name));
 });
 

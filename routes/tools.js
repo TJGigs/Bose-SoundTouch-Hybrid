@@ -4,7 +4,10 @@ const router = express.Router();
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
+const xml2js = require('xml2js');
 const { executeSmartShutdown, runSpeakerAudit, pushPresetsToSpeaker, updateWatchdogGlobals } = require('./utils');
+const deviceState = require('../device_state');
 
 const SETTINGS_FILE = path.join(process.cwd(), 'config', 'settings.json');
 
@@ -66,6 +69,8 @@ router.post('/admin/settings', (req, res) => {
 
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify(newSettings, null, 4));
         updateWatchdogGlobals();
+        if (!newSettings.autoResumePreset) deviceState.clearAllResumeState();
+        else if (!newSettings.doubleTapPresets) deviceState.pruneExtendedPresetsFromMemory();
         res.json({ success: true });
     } catch (e) {
         console.error("[Tools] Failed to save settings:", e);
@@ -185,6 +190,68 @@ const saveStereoPairs = (data) => {
     }
 };
 
+// Single-attempt deviceId fetch for pair creation enrichment. No retry — speakers must be
+// online to create a pair anyway. Returns null silently if the speaker doesn't respond.
+async function fetchSpeakerDeviceId(ip) {
+    try {
+        const res = await axios.get(`http://${ip}:8090/info`, { timeout: 3000 });
+        const parser = new xml2js.Parser({ explicitArray: false });
+        const data = await parser.parseStringPromise(res.data);
+        return data?.info?.$?.deviceID || data?.info?.deviceID || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Boot-time stereo pair consistency check.
+// 1. Prunes pairs whose speaker IPs are no longer in speakers.json (speaker was deleted).
+// 2. Updates stale IPs in pairs that have deviceIds stored, if speakers.json (v4 auto-discovery)
+//    has the same device at a new IP. Does nothing in v3 — speakers.json has no deviceId fields.
+(function syncStereoPairsOnBoot() {
+    try {
+        const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
+        if (!fs.existsSync(stereoPairsFile) || !fs.existsSync(speakersPath)) return;
+
+        const speakers = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
+        const knownIps = new Set(speakers.map(s => s.ip));
+        const deviceIdToIp = {};
+        for (const s of speakers) {
+            if (s.deviceId) deviceIdToIp[s.deviceId] = s.ip;
+        }
+
+        let pairs = getStereoPairs();
+        const before = pairs.length;
+        let ipUpdates = 0;
+
+        pairs = pairs.filter(p => {
+            const leftOk  = knownIps.has(p.leftIp);
+            const rightOk = knownIps.has(p.rightIp);
+            if (!leftOk || !rightOk) {
+                console.log(`[Tools] 🧹 Removed stereo pair "${p.name}" — speaker ${!leftOk ? p.leftIp : p.rightIp} not in speakers.json.`);
+                return false;
+            }
+            return true;
+        });
+
+        for (const p of pairs) {
+            if (p.leftDeviceId && deviceIdToIp[p.leftDeviceId] && deviceIdToIp[p.leftDeviceId] !== p.leftIp) {
+                console.log(`[Tools] 🔄 Stereo pair "${p.name}": left IP updated ${p.leftIp} → ${deviceIdToIp[p.leftDeviceId]}`);
+                p.leftIp = deviceIdToIp[p.leftDeviceId];
+                ipUpdates++;
+            }
+            if (p.rightDeviceId && deviceIdToIp[p.rightDeviceId] && deviceIdToIp[p.rightDeviceId] !== p.rightIp) {
+                console.log(`[Tools] 🔄 Stereo pair "${p.name}": right IP updated ${p.rightIp} → ${deviceIdToIp[p.rightDeviceId]}`);
+                p.rightIp = deviceIdToIp[p.rightDeviceId];
+                ipUpdates++;
+            }
+        }
+
+        if (pairs.length < before || ipUpdates > 0) saveStereoPairs(pairs);
+    } catch (e) {
+        console.error('[Tools] ⚠️ Stereo pair boot sync error:', e.message);
+    }
+})();
+
 router.get('/admin/stereo-pairs', (req, res) => {
     if (global.DEBUG_MODE) {
         console.log(`[Tools] 📥 Fetching active stereo pairs...`);
@@ -192,9 +259,19 @@ router.get('/admin/stereo-pairs', (req, res) => {
     res.json(getStereoPairs());
 });
 
-router.post('/admin/stereo-pairs', (req, res) => {
+router.post('/admin/stereo-pairs', async (req, res) => {
     const { leftIp, rightIp, name } = req.body;
     console.log(`[Tools] ➕ Creating new stereo pair: "${name}" (L: ${leftIp} | R: ${rightIp})`);
+
+    const [leftDeviceId, rightDeviceId] = await Promise.all([
+        fetchSpeakerDeviceId(leftIp),
+        fetchSpeakerDeviceId(rightIp)
+    ]);
+
+    if (leftDeviceId)  console.log(`[Tools] 🔑 Left deviceId stored: ${leftDeviceId}`);
+    else               console.log(`[Tools] ⚠️ Could not fetch deviceId for ${leftIp} — pair created without it.`);
+    if (rightDeviceId) console.log(`[Tools] 🔑 Right deviceId stored: ${rightDeviceId}`);
+    else               console.log(`[Tools] ⚠️ Could not fetch deviceId for ${rightIp} — pair created without it.`);
 
     const pairs = getStereoPairs();
     const newPair = {
@@ -202,6 +279,8 @@ router.post('/admin/stereo-pairs', (req, res) => {
         name,
         leftIp,
         rightIp,
+        ...(leftDeviceId  && { leftDeviceId  }),
+        ...(rightDeviceId && { rightDeviceId }),
         stereoXml: true
     };
 
@@ -308,6 +387,36 @@ router.post('/admin/set_wifi', async (req, res) => {
 
             }, 3000); // 3-second delay for clearing
         });
+    }
+});
+
+// --- SPEAKER DISCOVERY ---
+router.get('/admin/discover', async (req, res) => {
+    try {
+        const { discoverSpeakers } = require('./utils');
+        const massIp = process.env.MASS_IP;
+        if (!massIp) return res.status(500).json({ error: 'MASS_IP not configured' });
+        const subnet = massIp.split('.').slice(0, 3).join('.');
+        console.log(`[Tools] 🔍 Manual speaker discovery triggered on ${subnet}.0/24`);
+        const speakers = await discoverSpeakers(subnet);
+        console.log(`[Tools] 🔍 Discovery complete — found ${speakers.length} speaker(s).`);
+        res.json(speakers);
+    } catch (e) {
+        console.error(`[Tools] Discovery error: ${e.message}`);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- V4 SPEAKER CONFIG — returns speakers_v4.json content and enabled flag ---
+router.get('/admin/v4-speakers', (req, res) => {
+    const enabled = global.ENABLE_V4 === true;
+    if (!enabled) return res.json({ enabled: false, speakers: [] });
+    const v4Path = path.join(process.cwd(), 'config', 'logs', 'speakers_v4.json');
+    try {
+        const speakers = fs.existsSync(v4Path) ? JSON.parse(fs.readFileSync(v4Path, 'utf8')) : [];
+        res.json({ enabled: true, speakers });
+    } catch (e) {
+        res.json({ enabled: true, speakers: [] });
     }
 });
 

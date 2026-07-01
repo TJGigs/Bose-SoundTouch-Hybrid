@@ -220,7 +220,7 @@
     
     <div style="display:flex; justify-content:flex-end; gap:10px">
       <button class="btn-sm" onclick="closeModal()">Cancel</button>
-      <button class="primary" onclick="saveItem()">Save</button>
+      <button class="primary" onclick="saveItem(this)">Save</button>
     </div>
   </div>
 </div>
@@ -247,6 +247,7 @@
   let selectedUuid = null;
   let npInterval = null;
   let currentSearchOrder = []; // populated from settings on load
+  let extendedPresetsEnabled = false;
 
   // --- THEME MANAGEMENT ---
   // Applies the theme immediately to prevent flash of unstyled content
@@ -271,6 +272,7 @@
   async function loadUserPreferences() {
       try {
           const settings = await api('/api/admin/settings');
+          if (settings) extendedPresetsEnabled = settings.doubleTapPresets === true;
           if (settings && Array.isArray(settings.searchMenuOrder) && settings.searchMenuOrder.length > 0) {
               let raw = settings.searchMenuOrder;
               // Defensive: migrate legacy string array if server hasn't converted it yet
@@ -290,9 +292,25 @@
       }
   }
 
+  function updateSlotDropdown() {
+      const sel = document.getElementById('edit-slot');
+      if (!sel) return;
+      // Remove any previously injected extended options
+      Array.from(sel.options).forEach(o => { if (parseInt(o.value) > 6) sel.removeChild(o); });
+      if (!extendedPresetsEnabled) return;
+      const ext = [[11,'P1'],[22,'P2'],[33,'P3'],[44,'P4'],[55,'P5'],[66,'P6']];
+      ext.forEach(([val, btn]) => {
+          const o = document.createElement('option');
+          o.value = val;
+          o.textContent = `Preset ${val} (double-tap ${btn})`;
+          sel.appendChild(o);
+      });
+  }
+
   // --- INITIALIZATION ---
   window.onload = async function () {
       await loadUserPreferences(); // 1. Wait for server settings FIRST
+      updateSlotDropdown();
       buildSearchMenu(); // 2. Draw the menu using those settings
       loadProviders().then(() => loadLibrary());
       fetchSpeakers();
@@ -731,7 +749,7 @@
 
 		// IF HISTORY (-1): Show instant Save and Delete
       if (item.slot === -1) {
-          btns = `<button class="btn-sm" onclick="saveToLibraryDirect('${item.uuid}')">💾 Save to Library</button>
+          btns = `<button class="btn-sm" onclick="saveToLibraryDirect('${item.uuid}', this)">💾 Save to Library</button>
                 <button class="btn-sm action-delete" onclick="deleteItem('${item.uuid}', true)" title="Delete Stream" style="color: var(--danger); font-size: 0.8em; font-weight: bold;">✖</button>`;
       }
       // IF NORMAL: Show Play, plus Edit/Save
@@ -898,12 +916,12 @@
 
       const viewScope = document.getElementById('preset-view-filter') ? document.getElementById('preset-view-filter').value : '';
 
-      // Generate Preset Cards (Slots 1-6) based on selected scope
-      const presets = [1, 2, 3, 4, 5, 6].map(slot => {
+      // Generate Preset Cards — slots 1-6 standard, plus 11-66 if extended presets enabled
+      const presetSlots = extendedPresetsEnabled ? [1,2,3,4,5,6,11,22,33,44,55,66] : [1,2,3,4,5,6];
+      const presets = presetSlots.map(slot => {
           const item = library.find(i => i.slot === slot && (i.speakerIp || '') === viewScope);
           if (item)
               return renderCard(item, true, true);
-          // Updated empty slot styling to use a class instead of inline dim styles
           return `<div class="card empty-slot">Slot ${slot} Empty (${viewScope === '' ? 'Global' : 'Hybrid'})</div>`;
       }).join('');
 
@@ -960,7 +978,9 @@
 
       const favsHtml = filteredFavs.map(i => renderCard(i, true, true, true)).join('');
 
-      document.getElementById('lib-presets').innerHTML = presets;
+      const libPresetsEl = document.getElementById('lib-presets');
+      libPresetsEl.classList.toggle('extended', extendedPresetsEnabled);
+      libPresetsEl.innerHTML = presets;
       document.getElementById('lib-favorites').innerHTML = favsHtml || '<div style="padding:20px; color:#555">No items match your filters.</div>';
   }
 
@@ -1027,7 +1047,7 @@
       document.getElementById('modal').style.display = 'none';
   }
 
-  async function saveItem() {
+  async function saveItem(btn) {
       const data = {
           uuid: document.getElementById('edit-uuid').value,
           name: document.getElementById('edit-name').value,
@@ -1044,16 +1064,18 @@
           }
       };
 
+      const orig = btn ? btn.innerHTML : null;
+      if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
       await api('/api/manager/save', {
           method: 'POST',
           body: JSON.stringify(data)
       });
-      closeModal();
 
-      if (state.tab === 'library')
-          loadLibrary();
-      else
-          alert("Saved to Library!");
+      if (btn) { btn.textContent = '✅ Saved!'; btn.classList.add('btn-success'); }
+      await new Promise(r => setTimeout(r, 700));
+      closeModal();
+      if (state.tab === 'library') loadLibrary();
   }
 
   // Updated deleteItem to support optional refresh of history, and smart confirmation messages
@@ -1126,7 +1148,7 @@
           // Gray out the button and disable clicks if unplayable using the new CSS class
           const btnClass = isDisabled ? 'btn btn-unreachable' : 'btn';
           const btnStyle = 'justify-content:space-between;';
-          const clickAction = isDisabled ? '' : `onclick="confirmPlay('${d.ip}')"`;
+          const clickAction = isDisabled ? '' : `onclick="confirmPlay('${d.ip}', this)"`;
 
           return `<button class="${btnClass}" style="${btnStyle}" ${clickAction}>
               ${d.name} <span style="font-size:0.8em; color:var(--text-secondary)">${subText}</span>
@@ -1134,8 +1156,8 @@
       }).join('');
   }
 
-  async function confirmPlay(ip) {
-      document.getElementById('speaker-modal').style.display = 'none';
+  async function confirmPlay(ip, btn) {
+      if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
       await api('/api/manager/play', {
           method: 'POST',
           body: JSON.stringify({
@@ -1143,7 +1165,8 @@
               ip
           })
       });
-      alert(`Playing on ${ip}...`);
+      if (btn) { btn.textContent = '✅ Playing!'; btn.classList.add('btn-success'); }
+      setTimeout(() => { document.getElementById('speaker-modal').style.display = 'none'; }, 800);
   }
 
   async function playCustomStream() {
@@ -1198,11 +1221,13 @@
   }
 
   // Saves history item to Fav (Slot 0) without modal
-  async function saveToLibraryDirect(uuid) {
+  async function saveToLibraryDirect(uuid, btn) {
+      const orig = btn ? btn.innerHTML : null;
+      if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
       const library = await api('/api/manager/library');
       const item = library.find(i => i.uuid === uuid);
-      if (!item)
-          return;
+      if (!item) return;
 
       // Promote to Favorite (Slot 0) and strip UUID so it saves as a new library item
       const data = {
@@ -1214,8 +1239,8 @@
           method: 'POST',
           body: JSON.stringify(data)
       });
-      alert(`"${item.name}" saved to Favorites!`);
-      loadCustomHistory(); // Refresh list
+      if (btn) { btn.textContent = '✅ Saved!'; btn.classList.add('btn-success'); }
+      setTimeout(() => loadCustomHistory(), 1000); // brief pause so user sees the confirmation
   }
 
   // Updated deleteItem to support optional refresh of history
