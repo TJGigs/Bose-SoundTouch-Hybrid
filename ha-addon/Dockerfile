@@ -9,12 +9,17 @@
 # expecting Supervisor to build it directly — it will only see this folder's
 # four files and the COPY steps below will fail.
 
+# ARG must precede the file's first FROM to stay in global scope, which is
+# what makes it available for the $BUILD_FROM substitution below — declaring
+# it between the two FROM lines (as the HA add-on template implies when you
+# add a stage above it) leaves it undeclared for that later FROM.
+ARG BUILD_FROM
+
 # Borrow the exact Node 22 runtime from the official image rather than trusting
 # whatever Node version Alpine's apk repo happens to carry for a given HA base
 # tag — musl-linked, so it drops cleanly onto HA's alpine-based images.
 FROM node:22-alpine AS nodejs
 
-ARG BUILD_FROM
 FROM $BUILD_FROM
 
 COPY --from=nodejs /usr/local/bin/node /usr/local/bin/node
