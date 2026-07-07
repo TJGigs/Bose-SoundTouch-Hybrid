@@ -96,11 +96,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Read add-on version from config.yaml
-        id: addon_version
-        run: |
-          version=$(grep '^version:' ha-addon/config.yaml | head -1 | sed -E 's/version: *"?([^"]*)"?/\1/')
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # Tags this exactly like the main app image (edge on main-branch pushes,
+      # the literal release tag on a v* tag push) so the add-on image can
+      # never drift from the main app's version again. sync-addon-version
+      # (below) writes this same tag into ha-addon/config.yaml so Supervisor
+      # pulls the matching image.
+      - name: Extract metadata for ${{ matrix.arch }} add-on
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/tjgigs/${{ matrix.arch }}-addon-bose-soundtouch-hybrid-2026
+          tags: |
+            type=edge,branch=main
+            type=match,pattern=(v.*),group=1
 
       - name: Build and push ${{ matrix.arch }} add-on image
         uses: docker/build-push-action@v6
@@ -112,6 +120,45 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             BUILD_FROM=${{ matrix.base_image }}
-          tags: |
-            ghcr.io/tjgigs/${{ matrix.arch }}-addon-bose-soundtouch-hybrid-2026:${{ steps.addon_version.outputs.version }}
-            ghcr.io/tjgigs/${{ matrix.arch }}-addon-bose-soundtouch-hybrid-2026:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # Keeps ha-addon/config.yaml's version field (what Supervisor reads to know
+  # which image tag to pull) locked to the tag just published above, so the
+  # HA add-on version can never silently drift from the main app version
+  # again. Only runs on an actual release tag push, not routine main pushes.
+  sync-addon-version:
+    needs: build-addon
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Sync ha-addon/config.yaml version to ${{ github.ref_name }}
+        run: |
+          NEW_VERSION="${GITHUB_REF_NAME}"
+          sed -i "s/^version: .*/version: \"${NEW_VERSION}\"/" ha-addon/config.yaml
+
+          # Fail loudly rather than silently leaving Supervisor pointed at a
+          # stale tag if config.yaml's format ever changes in a way that
+          # breaks this sed pattern.
+          if ! grep -q "^version: \"${NEW_VERSION}\"\$" ha-addon/config.yaml; then
+            echo "::error::Failed to sync ha-addon/config.yaml version to ${NEW_VERSION} — check the file's format hasn't changed."
+            exit 1
+          fi
+
+          if git diff --quiet ha-addon/config.yaml; then
+            echo "ha-addon/config.yaml already at ${NEW_VERSION}, nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ha-addon/config.yaml
+          git commit -m "chore: sync add-on version to ${NEW_VERSION} [skip ci]"
+          git push origin HEAD:main
