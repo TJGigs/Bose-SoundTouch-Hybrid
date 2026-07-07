@@ -1,7 +1,7 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.8.3";
+const CURRENT_VERSION = "v3.8.5";
 const ENV_SCHEMA_VERSION = "v4.0";
 const SETTINGS_SCHEMA_VERSION = "v3.8";
 const minReq = [2, 9, 4]; //MASS VERSION
