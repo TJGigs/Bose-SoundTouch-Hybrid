@@ -40,6 +40,19 @@ map:
     read_only: false
     path: /app/config
 
+# app_ip/mass_ip left blank by default — run.sh auto-detects the host's address
+# via bashio::network.ipv4_address when unset, since this add-on's host_network:
+# true means APP_IP and MASS_IP are the same machine whenever Music Assistant
+# also runs on this HA instance. Override mass_ip only if MASS runs elsewhere.
+#
+# mass_container_name isn't exposed here: restartMassContainer()'s Path 1
+# (routes/mass_utils.js) discovers the Music Assistant add-on's slug directly
+# via the Supervisor API whenever SUPERVISOR_TOKEN is present, which it always
+# is for this add-on — the manual container-name lookup only matters for the
+# standalone Docker/Topology-A deployments (templates/.env.template).
+#
+# bose_port isn't exposed either — it's a SoundTouch hardware constant (8090)
+# that never changes outside a port-forwarding edge case; hardcoded in run.sh.
 options:
   app_ip: ""
   mass_ip: ""
@@ -47,15 +60,11 @@ options:
   mass_token: ""
   mass_username: ""
   mass_password: ""
-  mass_container_name: "music-assistant-server"
-  bose_port: 8090
 
 schema:
-  app_ip: str
-  mass_ip: str
+  app_ip: "str?"
+  mass_ip: "str?"
   mass_port: port
   mass_token: "password?"
   mass_username: "str?"
   mass_password: "password?"
-  mass_container_name: str
-  bose_port: port

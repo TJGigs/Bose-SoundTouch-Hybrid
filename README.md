@@ -1,4 +1,4 @@
-#v3.8.2 Quick Notes: 
+# v3.8.2 Quick Notes: 
 *	🔊 v4.0 .ENV Schema. Read console log. You need to update the new file
 *	🔊 Address Bugs and Several Enhancements
 *   🔊 Improve Auto Enforcement of MA Player Configs on startup and added manual option on Tools page #125
