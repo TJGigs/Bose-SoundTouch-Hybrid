@@ -19,10 +19,10 @@ function buildImageUrl(artPath, provider, uri) {
         return artPath;
     }
     if (artPath && provider) {
-        return `/api/manager/proxy_image?mode=raw&path=${encodeURIComponent(artPath)}&provider=${encodeURIComponent(provider)}`;
+        return `api/manager/proxy_image?mode=raw&path=${encodeURIComponent(artPath)}&provider=${encodeURIComponent(provider)}`;
     }
     if (uri) {
-        return `/api/manager/proxy_image?uri=${encodeURIComponent(uri)}`;
+        return `api/manager/proxy_image?uri=${encodeURIComponent(uri)}`;
     }
     return DEFAULT_ICON;
 }
@@ -109,24 +109,9 @@ function isHybridContentItem(source, location) {
            location.includes(`${APP_IP}:${APP_PORT}/preset/`);
 }
 
-// --- PRESET HEALTH CHECKS ---
-// speakerHasPresets: slot existence only (used by legacy callers and as a base check)
-// speakerHasHybridPresets: stricter — confirms slots contain LOCAL_INTERNET_RADIO URLs
-// pointing back to this bridge. Both return true on fetch error to avoid false-positive reboots.
-async function speakerHasPresets(ip) {
-    try {
-        const res = await axios.get(`http://${ip}:8090/presets`, { timeout: 3000 });
-        const parser = new xml2js.Parser({ explicitArray: false });
-        const data = await parser.parseStringPromise(res.data);
-        const presets = data.presets && data.presets.preset;
-        if (!presets) return false;
-        if (Array.isArray(presets)) return presets.length > 0;
-        return Object.keys(presets).length > 0;
-    } catch (e) {
-        return true;
-    }
-}
-
+// --- PRESET HEALTH CHECK ---
+// speakerHasHybridPresets: confirms slots contain LOCAL_INTERNET_RADIO URLs pointing
+// back to this bridge. Returns true on fetch error to avoid false-positive reboots.
 async function speakerHasHybridPresets(ip) {
     const APP_IP = process.env.APP_IP;
     const APP_PORT = process.env.APP_PORT;
@@ -629,9 +614,7 @@ module.exports = {
     powerOffAllSpeakers,
     executeSmartShutdown,
     scheduleProviderReload,
-    rebootSpeakerAndReload,
     isHybridContentItem,
-    speakerHasPresets,
     speakerHasHybridPresets,
     getHybridPresetDefinitions,
     pushPresetsToSpeaker,

@@ -4,7 +4,6 @@
 const axios = require('axios');
 const http = require('http'); 
 const { URL } = require('url');
-const utils = require('./utils'); 
 const MASS_IP = process.env.MASS_IP;
 const MASS_PORT = process.env.MASS_PORT;
 const MASS_USERNAME = process.env.MASS_USERNAME; 
@@ -282,11 +281,6 @@ async function getRawMetadata(targetIp) {
         }
     } catch (e) { }
     return null;
-}
-
-// Wrapper for getRawMetadata to maintain API compatibility.
-async function getMetadata(targetIp) {
-    return await getRawMetadata(targetIp);
 }
 
 // Checks the playback state (playing, paused, idle) of a player.
@@ -724,9 +718,7 @@ module.exports = {
     pause,
     clearQueue,
     getRawMetadata,
-    getMetadata,
     getToken,
-    BASE_URL,
     setPresetMemory,
     getPresetMemory,
     isRecovering,

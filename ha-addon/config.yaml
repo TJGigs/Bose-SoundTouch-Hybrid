@@ -1,0 +1,61 @@
+name: "Bose SoundTouch Hybrid Bridge"
+version: "4.0.0"
+slug: "bose_soundtouch_hybrid"
+description: "Self-hosted replacement for Bose's discontinued SoundTouch Cloud service. Restores physical presets, multi-room grouping, and streaming via Music Assistant."
+url: "https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026"
+arch:
+  - aarch64
+  - amd64
+  - armv7
+
+# Published by the build-addon job in .github/workflows/docker-publish.yml —
+# {arch} is substituted by Supervisor with the host's arch (must match one of
+# the arch: entries above). Supervisor pulls the tag matching `version:` below,
+# so a version bump here only takes effect once CI has published that tag.
+image: "ghcr.io/tjgigs/{arch}-addon-bose-soundtouch-hybrid-2026"
+
+startup: application
+boot: auto
+init: false
+
+# Required so speakers on the LAN can reach APP_IP:3000 directly for the
+# LOCAL_INTERNET_RADIO preset backdoor. Without host networking this add-on
+# would only be reachable at Docker's internal bridge IP, which the presets
+# injected onto the speakers' NVRAM cannot resolve.
+host_network: true
+
+# Native Supervisor API access, needed for restartMassContainer()'s Path 1
+# (routes/mass_utils.js) to restart the Music Assistant add-on via
+# SUPERVISOR_TOKEN. "manager" role is the minimum that can act on add-ons
+# other than itself — untested against a real deployment as of 2026-07-05.
+hassio_api: true
+hassio_role: manager
+
+ingress: true
+ingress_port: 3000
+panel_icon: mdi:speaker-wireless
+
+map:
+  - type: addon_config
+    read_only: false
+    path: /app/config
+
+options:
+  app_ip: ""
+  mass_ip: ""
+  mass_port: 8095
+  mass_token: ""
+  mass_username: ""
+  mass_password: ""
+  mass_container_name: "music-assistant-server"
+  bose_port: 8090
+
+schema:
+  app_ip: str
+  mass_ip: str
+  mass_port: port
+  mass_token: "password?"
+  mass_username: "str?"
+  mass_password: "password?"
+  mass_container_name: str
+  bose_port: port

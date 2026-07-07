@@ -12,10 +12,6 @@ const PORT = process.env.APP_PORT;
 const LOG_DIR = path.resolve(process.cwd(), "config", "logs");
 const identityCache = {};
 
-// ⚠️ TEST FLAG — SET TO true TO DELIVER EMPTY PRESETS DURING CLOUD HANDSHAKE.
-// SET BACK TO false BEFORE COMMITTING.
-const FORCE_EMPTY_PRESETS = false;
-
 // Use the global debug variable set by tools.html / admin.js
 const isDebug = () => global.DEBUG_MODE === true;
 
@@ -234,7 +230,6 @@ function generateSourceProviders(reqIp) {
 // a response it didn't understand, causing retries. Empty 200 OK matches real cloud behavior.
 
 function generatePresetsXml() {
-    if (FORCE_EMPTY_PRESETS) return '<presets/>';
     const time = getTimestamp();
     // Sourced from utils.getHybridPresetDefinitions() so this cloud-delivered XML and
     // the Preset Watchdog's direct WAPI storePreset write "Hybrid Preset N" the same
@@ -384,8 +379,6 @@ router.get('/bmx/registry/v1/services', (req, res) => {
 // 3. Source Providers (Internet Radio Local Bypass)
 router.get('/streaming/sourceproviders', (req, res) => {
     const reqIp = getIp(req);
-	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
-    //const reqIp = req.query.ip || getIp(req);
     notePreBmxStep(reqIp, 'sourceProviders');
     if (handshakeTracker[reqIp] && !handshakeTracker[reqIp].sourceProviders) {
         handshakeTracker[reqIp].sourceProviders = true;
@@ -398,8 +391,6 @@ router.get('/streaming/sourceproviders', (req, res) => {
 // 4. Full Account Profile (The Preset Injector)
 router.get('/streaming/account/:id/full', async (req, res) => {
     const reqIp = getIp(req);
-	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
-    //const reqIp = req.query.ip || getIp(req);
     const accountId = req.params.id;
     
     console.log(`[Bose Cloud] Account Profile requested by ${reqIp}. Fetching identity...`);
@@ -423,15 +414,13 @@ router.get('/streaming/account/:id/full', async (req, res) => {
 
 router.get('/streaming/account/:id/device/:deviceId/presets', (req, res) => {
     const reqIp = getIp(req);
-	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
-    //const reqIp = req.query.ip || getIp(req);
     console.log(`[Bose Cloud] Standby Preset Sync requested by ${reqIp}. Delivering Hybrid Presets...`);
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${generatePresetsXml()}`);
 });
 
 router.get('/streaming/account/:id/provider_settings', (req, res) => {
     const reqIp = getIp(req);
-    console.log(`[Bose Cloud] Provider Settings requested by ${reqIp}. Return 200 matching real Bose cloud UberBose/SoundCork Findings).`);
+    console.log(`[Bose Cloud] Provider Settings requested by ${reqIp}. Return 200 per Bose cloud UberBose/SoundCork).`);
     res.set('Content-Type', 'application/vnd.bose.streaming-v1.2+xml');
     res.status(200).send('');
 });
@@ -443,7 +432,6 @@ const stereoPairsFile = path.join(process.cwd(), 'config', 'stereo_pairs.json');
 
 router.get('/streaming/account/:id/device/:deviceId/group/', async (req, res) => {
     const reqIp = getIp(req);
-//	const reqIp = req.query.ip || getIp(req); //TESTING ONLY REMOVE BEFORE PROD
 
     if (fs.existsSync(stereoPairsFile)) {
         const pairs = JSON.parse(fs.readFileSync(stereoPairsFile, 'utf8'));

@@ -71,9 +71,9 @@ async function discoverMusicAssistantAppSlug() {
 async function restartViaSupervisor() {
     const appSlug = await discoverMusicAssistantAppSlug();
     if (!appSlug) {
-        throw new Error('Music Assistant add-on was not found via Supervisor.');
+        throw new Error('Music Assistant was not found via Supervisor.');
     }
-    console.log(`[MASS Restart] Trying HA Supervisor restart for add-on "${appSlug}"...`);
+    console.log(`[MASS Restart] Trying HA Supervisor restart for "${appSlug}"...`);
     await supervisorRequest(`/addons/${appSlug}/restart`, 'POST');
     console.log(`[MASS Restart] ✓ HA Supervisor: MASS restart command accepted.`);
     return true;
@@ -130,13 +130,12 @@ async function restartMassContainer() {
 
     // --- Path 3: HA Supervisor API, public (MASS as HA add-on on a separate VM) ---
     if (haToken && massIp) {
-        const addonSlug = containerName.startsWith('addon_') ? containerName.slice(6) : containerName;
-        console.log(`[MASS Restart] Trying HA Supervisor API at ${massIp}:${haPort} (add-on: "${addonSlug}")...`);
+        console.log(`[MASS Restart] Trying HA Supervisor API at ${massIp}:${haPort} ("${containerName}")...`);
         try {
             await axios.post(
                 `http://${massIp}:${haPort}/api/services/hassio/addon_restart`,
-                { addon: addonSlug },
-                { headers: { 'Authorization': `Bearer ${haToken}`, 'Content-Type': 'application/json' }, timeout: 10000 }
+                { addon: containerName },
+                { headers: { 'Authorization': `Bearer ${haToken}`, 'Content-Type': 'application/json' }, timeout: 60000 }
             );
             console.log(`[MASS Restart] ✓ HA Supervisor: MASS restart command accepted.`);
             return true;
@@ -146,7 +145,7 @@ async function restartMassContainer() {
         }
     } else if (!haToken) {
         console.log(`[MASS Restart] ⚠️  HA_TOKEN not set — HA Supervisor path unavailable.`);
-        console.log(`[MASS Restart] ⚠️  For HA add-on / separate VM setups, add HA_TOKEN to config/.env.`);
+        console.log(`[MASS Restart] ⚠️  For HA / separate VM setups, add HA_TOKEN to config/.env.`);
     }
 
     // --- All paths exhausted ---

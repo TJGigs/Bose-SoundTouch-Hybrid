@@ -50,9 +50,9 @@
                 </div>
                 
                 <div class="nav-menu">
-                    <div class="nav-link" onclick="window.location.href='/control.html'" style="cursor:pointer;">Remote Control</div>
-                    <div class="nav-link" onclick="window.location.href='/manager.html'" style="cursor:pointer;">Library Manager</div>
-                    <div class="nav-link" onclick="window.location.href='/admin.html'" style="cursor:pointer;">Speaker Admin</div>
+                    <div class="nav-link" onclick="window.location.href='control.html'" style="cursor:pointer;">Remote Control</div>
+                    <div class="nav-link" onclick="window.location.href='manager.html'" style="cursor:pointer;">Library Manager</div>
+                    <div class="nav-link" onclick="window.location.href='admin.html'" style="cursor:pointer;">Speaker Admin</div>
                     <div class="nav-link active">System Tools</div>
                 </div>
             </div>
@@ -544,7 +544,6 @@
 	</div>
 	
 	<script>
-		const SERVER_URL = window.location.protocol + "//" + window.location.host;
 		(async function initRestrictedAccess() {
 		    try {
 		        const res = await fetch('api/admin/settings');
@@ -553,7 +552,7 @@
 		        if (!s.restrictedMode || !s.adminPin) return;
 		        let token = localStorage.getItem('adminSessionToken');
 		        if (token) {
-		            const chk = await fetch(`/api/admin/check-session?token=${encodeURIComponent(token)}`);
+		            const chk = await fetch(`api/admin/check-session?token=${encodeURIComponent(token)}`);
 		            if ((await chk.json()).valid) return;
 		        }
 		        document.getElementById('pin-overlay').style.display = 'flex';
@@ -656,10 +655,10 @@
 		// Known local icons — these always win over MASS-provided icons
 		const KNOWN_LOCAL_ICONS = {
 		    'global':           null,
-		    'spotify':          '/images/spotify_icon.png',
-		    'tunein':           '/images/TuneIn_icon.png',
-		    'filesystem_local': '/images/nas_icon.png',
-		    'file':             '/images/nas_icon.png'
+		    'spotify':          'images/spotify_icon.png',
+		    'tunein':           'images/TuneIn_icon.png',
+		    'filesystem_local': 'images/nas_icon.png',
+		    'file':             'images/nas_icon.png'
 		};
 
 		// Radio providers whose domain name doesn't contain the word "radio"
@@ -747,7 +746,7 @@
 		        const isHidden = !entry.enabled;
 		        const iconHtml = entry.key === 'global'
 		            ? `<span style="font-size:1.4em; line-height:1;">🌍</span>`
-		            : `<img src="${entry.icon || '/images/ma_icon.png'}" onerror="this.src='/images/ma_icon.png'" style="height:20px; width:auto; object-fit:contain;">`;
+		            : `<img src="${entry.icon || 'images/ma_icon.png'}" onerror="this.src='images/ma_icon.png'" style="height:20px; width:auto; object-fit:contain;">`;
 
 		        return `
 			<div style="display: flex; flex-direction: column; align-items: center; background: ${isHidden ? 'rgba(128,128,128,0.05)' : 'rgba(128,128,128,0.1)'}; padding: 10px 4px 8px; border-radius: 6px; border: 1px solid ${isHidden ? 'rgba(128,128,128,0.2)' : 'var(--border)'}; flex: 1; min-width: 70px; opacity: ${isHidden ? '0.45' : '1'}; position: relative;">
@@ -1511,7 +1510,7 @@ async function saveScheduledPlays(silent = false) {
 		    btn.disabled = true;
 
 		    // --- NORMALIZED ENDPOINT ---
-		    const endpoint = '/api/admin/restart';
+		    const endpoint = 'api/admin/restart';
 		    const payload = {
 		        injectTarget: injectTarget,
 		        rebootTarget: rebootTarget
@@ -1978,7 +1977,7 @@ async function saveScheduledPlays(silent = false) {
 
 		    try {
 		        // FIXED PATH: Added /admin
-		        await fetch(`/api/admin/stereo-pairs/${id}`, { method: 'DELETE' });
+		        await fetch(`api/admin/stereo-pairs/${id}`, { method: 'DELETE' });
 		        
 				// 🌟 AUTOMATED TARGETED REBOOTS (Ignores 10.0.0.9x Dummies)
 		        if (!leftIp.startsWith('10.0.0.9')) {

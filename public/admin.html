@@ -34,10 +34,10 @@
 	</div>
     
 	<div class="nav-center-group">
-        <div class="global-link" onmousedown="window.location.href='/control.html'">Remote Control</div>
-        <div class="global-link" onmousedown="window.location.href='/manager.html'">Library Manager</div>
-        <div class="global-link active" onmousedown="window.location.href='/admin.html'">Speaker Admin</div>
-        <div class="global-link" onmousedown="window.location.href='/tools.html'">System Tools</div>
+        <div class="global-link" onmousedown="window.location.href='control.html'">Remote Control</div>
+        <div class="global-link" onmousedown="window.location.href='manager.html'">Library Manager</div>
+        <div class="global-link active" onmousedown="window.location.href='admin.html'">Speaker Admin</div>
+        <div class="global-link" onmousedown="window.location.href='tools.html'">System Tools</div>
     </div>
 
     <div style="min-width:250px; display:flex; justify-content:flex-end;">
@@ -170,7 +170,7 @@
 
   async function fetchDeviceState(ip) {
       try {
-          const res = await fetch(`/api/admin/device_status?ip=${ip}`);
+          const res = await fetch(`api/admin/device_status?ip=${ip}`);
           const s = await res.json();
           
           const nameInput = document.getElementById(`n-${ip}`);
@@ -270,11 +270,10 @@
           }
 
           if (btn) {
-              btn.textContent = '✅ Saved';
+              btn.textContent = '✅ Saved — restart app to sync';
               btn.classList.add('btn-success');
-              setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('btn-success'); btn.disabled = false; }, 3000);
+              setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('btn-success'); btn.disabled = false; }, 5000);
           }
-          setTimeout(() => fetchDeviceState(ip), 2000);
       } catch (e) {
           if (btn) { btn.innerHTML = orig; btn.disabled = false; }
           alert("Network error: " + e.message);
@@ -308,7 +307,7 @@
 
   async function dS(ip) { 
     const box = document.getElementById(`log-${ip}`); box.style.display = 'block'; box.value = "Scanning...";
-    const res = await fetch(`/api/admin/deepscan?ip=${ip}`);
+    const res = await fetch(`api/admin/deepscan?ip=${ip}`);
     const data = await res.json();
     box.value = Object.entries(data).map(([k, v]) => `=== /${k} ===\n${formatXml(v)}\n`).join('\n');
   }
@@ -364,7 +363,7 @@ async function toggleSource(ip, btn) {
           if (!s.restrictedMode || !s.adminPin) return;
           let token = localStorage.getItem('adminSessionToken');
           if (token) {
-              const chk = await fetch(`/api/admin/check-session?token=${encodeURIComponent(token)}`);
+              const chk = await fetch(`api/admin/check-session?token=${encodeURIComponent(token)}`);
               if ((await chk.json()).valid) return;
           }
           document.getElementById('pin-overlay').style.display = 'flex';
