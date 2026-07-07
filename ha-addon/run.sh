@@ -36,6 +36,6 @@ export TZ
 TZ="$(bashio::supervisor.timezone)"
 bashio::log.info "Timezone set from Home Assistant Supervisor: ${TZ}"
 
-bashio::log.info "Starting Bose SoundTouch Hybrid Bridge..."
+bashio::log.info "Starting Bose SoundTouch Hybrid..."
 cd /app || exit 1
 exec node server.js
