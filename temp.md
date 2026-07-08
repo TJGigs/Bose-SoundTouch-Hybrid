@@ -1,84 +1,116 @@
-# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 v4.0
 
-**A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch 10, 20, 30, Wave Speakers and Wireless Link. Physical Presets Included!**
+# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid 2026 v4
 
-<img src="public/images/bose_icon.png" width="20">  The Bose shut down of their SoundTouch Cloud Service (May 2026) degraded the Bose SoundTouch intelligent, multi-room audio speakers into "dumb" receivers dependent on a phone's active connection. This represents a **significant loss of functionality** for the SoundTouch 10, 20, and 30 Speakers and Wireless Link Adapter. 
+**A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch Speakers and Wireless Link. Physical Presets Included!**
 
-<img src="public/images/hybrid_icon.png" width="20">  **This solution provides a self-hosted "Private Cloud" to emulate and replace the Bose Cloud Service**. It runs locally on your network (NAS, PC, etc.) and intercepts and actively manages the complex server handshakes required to keep the SoundTouch Speakers authenticated and functional, providing the **same phone-free audio streaming capabilities** as the original SoundTouch Application and Speakers. 
+<img src="public/images/hybrid_icon.png" width="20"> **This solution provides a self-hosted "Private Cloud" to simulate and replace the deactivated Bose Cloud Service.** <img src="public/images/bose_icon.png" width="20">  It runs locally on your network (NAS, PC, or as a Home Assistant add-on) and intercepts and actively manages the complex server handshakes required to keep the SoundTouch Speakers authenticated and functional, providing the **same phone-free audio streaming capabilities** as the original SoundTouch Application and Speakers.
 
-### ✨ V4 Enhancements:
+
+## ⚠️ Upgrading to v4
+
+* **New `.env` schema.** Startup copies a fresh `.env` template into your directory and backs up your old one — don't reuse your old `.env` file directly; re-enter your values into the new one.
+* **New `bose-soundtouch-hybrid.yml` required.** Download the current version — it has install changes beyond just the version tag. Don't reuse an old copy.
+  [`bose-soundtouch-hybrid.yml`](https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/blob/main/bose-soundtouch-hybrid.yml)
+* Full upgrade steps: see [Installations](#installations) below.
+
+---
+
+## ✨ V4 Enhancements
+
+* ✅ **Native Home Assistant Add-on:** SoundTouch Hybrid now ships as a proper HA Supervisor add-on — Ingress UI, a Configuration tab, auto-detected host IP, and native Supervisor-token restart of Music Assistant. No more relying on a third-party wrapper.
+  <!-- FLAG: confirm you want this public before the add-on is fully vetted — you told a user recently it's not ready. -->
+* ✅ **Automatic MASS Player Config Enforcement:** On every boot, and again whenever a speaker reconnects, SoundTouch Hybrid audits each speaker's Music Assistant player settings and corrects drift — including forcing a sane DLNA/AirPlay protocol choice instead of an unreliable Auto-Select. Also triggerable manually from the Tools page. (#125)
+* ✅ **Three-Path MASS Restart Cascade:** Automatically restarts Music Assistant through whichever path matches your setup — native HA Supervisor token, Docker socket, or a long-lived HA access token when HA/MASS runs on a separate machine. (#121)
+* ✅ **Token Reuse for MASS Auth:** Reuses a cached Music Assistant auth token across calls instead of re-authenticating on every request. (#128)
+* ✅ **Real-Time Preset Loss Detection & Auto-Heal:** Detects when a speaker's physical presets are wiped — a known legacy-firmware failure mode — and re-injects them immediately, without waiting for the next boot cycle.
+* ✅ **Multiple Speaker Groups:** Supports more than one active multi-room group at a time, with control over which speaker acts as master in each. (#106, #102)
+* ✅ **Physical Remote Control Parity Across DLNA & AirPlay:** Remote-button hijacks (play/pause/next/prev) are translated correctly regardless of which protocol is streaming — including compensating for AirPlay's firmware quirk of ending the session on pause. (#120, #57, #70, #63)
+* ✅ **Persistent Auto-Resume Presets:** The "last active preset" memory per speaker now lives on disk instead of in memory, so it survives container rebuilds and restarts, not just app restarts. (#112)
+* ✅ **Preset Debugging Watchdog:** Opt-in, per-speaker logging of cloud/session events, for diagnosing a problem speaker without turning on full verbose logging everywhere. (Discussion #16)
+* ✅ **MASS Recent-Items Cache Warming:** Prefetches recently-played items from Music Assistant on boot, so the Library page's "Recent" view loads instantly instead of waiting on a cold MASS query.
+* ✅ **Optional Admin PIN Lock:** Restrict the Tools and Admin pages behind a PIN — useful on a shared household network where you don't want everyone able to change system settings. (#107)
+* ✅ **Configurable Search Tabs:** Library search tabs are dynamically sourced from your active Music Assistant providers — choose which appear, and in what order.
+* ✅ **Podcasts & Audiobooks:** Now searchable and browsable in the Library alongside music, wherever your MASS providers support them.
+* ✅ **Scheduled Power-On & Play:** Set speakers (or groups) to power on and start playback automatically at a scheduled time.
+* ✅ **Scheduled Maintenance:** Optionally run a nightly speaker audit and/or a scheduled app restart at a set hour, with an option to include a full reboot.
+* ✅ **ST10 Stereo Pairing:** Pair two ST10 speakers as a stereo left/right pair.
+* ✅ **Expanded Tools Page:** Centralizes the toggles above (auto-resume, auto-restart MASS, auto-sync volume, scheduling, admin PIN) alongside manual troubleshooting actions (config enforcement, rescans, watchdog controls) in one place.
+* ✅ **Fully Automated Cloud Injection Sequence:** The Bose Cloud emulation handshake and preset injection sequence is fully automatic on first boot — confirmed, no USB stick or manual firmware step ever required.
+
+### ✨ V3 Enhancements
 
 * ✅ **Custom URL Streaming Library Integration:** Moved the "play custom URL stream" function to the Library Manager and added the ability to assign custom streams directly to favorites and physical speaker presets.
-
 * ✅ **Advanced Global and Favorites Search:** Expanded the search functionality with additional filters, including the ability to perform provider-specific searches.
-
 * ✅ **Auto-Resume Presets:** Speakers now remember if a preset was active when powered off and will automatically resume that specific preset upon the next power-on.
-
 * ✅ **In-App Update Notifications:** Automatically checks for new releases and displays a notification banner within the UI when a new version is available.
-
 * ✅ **Live Console Logging:** Integrated a real-time server log viewer directly into the System Tools page.
-
 * ✅ **Streamlined GHCR Deployment:** Transitioned from manual repository cloning to a pre-built GitHub Container Registry image. The system now automatically generates required configuration templates on first boot and performs startup configuration and version validation checks.
-
 * ✅ **Improved State Synchronization:** Completely replaced backend REST API polling with a more efficient, stable, and event-driven WebSocket architecture for improved speaker state and audio stream tracking.
-
 * ✅ **Music Assistant Native DLNA Metadata:** Takes advantage of Music Assistant's improved DLNA streaming by reading track metadata directly from the audio stream. The original API-based fetch has been streamlined into a lightweight "Watchdog" function that executes as a fallback only when needed. *(MASS v2.8.5 or later required)*
+* ✅ **Music Assistant Smart Startup & Version Checks:** On boot, the app now verifies the Music Assistant version and automatically launches the container if it detects it isn't running. *(MASS v2.8.5 or later required)*
 
-* ✅ **Music Assistant Smart Startup & Version Checks:** On boot, the app now verifies the Music Assistant version and automatically launches the container if it detects it isn't running.  *(MASS v2.8.5 or later required)*
+---
 
+## ✨ Application Key Features
 
-### ✨ Application Key Features:
 * **100% Local Control:** Your data and control logic stay on your LAN. No reliance on external Bose servers.
 * **Complete App Replacement:** A single, responsive web interface for **Desktop** and **Mobile** that handles both streaming and speaker maintenance, completely eliminating the need for the legacy SoundTouch app or provider-specific streaming apps. Includes support for initial speaker setup, factory resets, WiFi provisioning, and the one-time automated injection of a speaker's internal cloud emulation configuration (`OverrideSdkPrivateCfg.xml`).
-
-* **Hardware Intelligence Preserved:** 
-  * ✅ **Local Bose Cloud Emulation:** Local replacement emulating  the required Bose Cloud handshakes to keeping the speakers authenticated and fully functional.
+* **Hardware Intelligence Preserved:**
+  * ✅ **Local Bose Cloud Emulation:** Local replacement emulating the required Bose Cloud handshakes to keep the speakers authenticated and fully functional.
   * ✅ **The Physical 1-6 Preset Buttons:** Remain assignable to any source via the Hybrid Bridge and work instantly.
-  * ✅ **Volume, Power, & Presets:** Physical speaker buttons remain fully functional and sync perfectly with the new Hybrid app.
-  * ✅ **Native Hardware Grouping:** Utilizes Bose's near-zero-latency Master/Slave hardware grouping instead of software-level sync. This guarantees perfect multi-speaker audio regardless of whether you are streaming from a new Hybrid cloud source or a local input.
-* **Expanded Music Universe:** Bridges your speakers to modern sources powered by Music Assistant (MASS v2.8.5 or later requried) <img src="public/images/ma_icon.png" width="15">
+  * ✅ **Volume, Power, & Presets:** Physical speaker buttons remain fully functional and sync perfectly with the Hybrid app.
+  * ✅ **Native Hardware Grouping:** Utilizes Bose's near-zero-latency Master/Slave hardware grouping instead of software-level sync, across one or more independent groups. This guarantees perfect multi-speaker audio regardless of whether you're streaming from a Hybrid cloud source or a local input.
+* **Expanded Music Universe:** Bridges your speakers to modern sources powered by Music Assistant (MASS v2.9.5 or later required) <img src="public/images/ma_icon.png" width="15">
   * Spotify, Apple Music, YouTube Music
   * Local NAS Files, Plex, Jellyfin
-  * Internet Radio (TuneIn, DI.fm)
+  * Internet Radio (TuneIn, DI.fm), Podcasts, Audiobooks
   * Others from MASS
-  * Global Agnostic Search within SoundTouch Hybrid Library of all your MASS sources
+  * Global agnostic search across your entire SoundTouch Hybrid library, spanning all your MASS sources
 
 ## 🛠 Architecture
-* **Backend:** Custom Node.js/server acting as the "Audio Engine" (Music Assistant <img src="public/images/ma_icon.png" width="15"> ) and local Bose Cloud Emulation ☁️.
+
+* **Backend:** Custom Node.js server acting as the "Audio Engine" (Music Assistant <img src="public/images/ma_icon.png" width="15">) and local Bose Cloud Emulation ☁️.
 * **Frontend:** Responsive Web App deployable to any browser.
-* **Connectivity:** Direct IP control over Bose WebSockets & XML API. 
+* **Connectivity:** Direct IP control over Bose WebSockets & XML API.
+* **Deployment:** Standalone Docker (NAS/PC) or as a native Home Assistant Supervisor add-on — same backend either way, see [Installations](#installations).
+
 <img src="public/docs/ArchitectureIntro.png" alt="SoundTouch Hybrid Architecture Diagram" width="700">
 
-### ☁️ BOSE CLOUD EMULATION AND HYBRID FEATURES:
+### ☁️ Bose Cloud Emulation and Hybrid Features
 
-### Authentication & Provisioning
+> Suggest collapsing this whole subsection under a `<details><summary>Under the Hood</summary>...</details>` toggle, or moving it to `docs/ARCHITECTURE.md` — it's accurate and well-organized, but it's a lot of implementation depth to hit before a first-time reader gets to "how do I install this."
+
+#### Authentication & Provisioning
 * Full BMX Registry and MargeID handshakes
 * Dynamic account profile generation
 * Source Providers Authorization (e.g., `11`, `LOCAL_INTERNET_RADIO`)
 * Automated injection of Hybrid Preset Physical Buttons (1-6)
 * Automated Cloud Redirect Setup (points speakers to local server)
 
-### Device Rescue (NVRAM Auto-Healer)
+#### Device Rescue (NVRAM Auto-Healer)
 * Factory-reset speaker detection and setup
 * Gabbo System Bus (Port `8080`) websocket backdoor access
 * Automated UI setup bypass (Language → Name → Account Binding → Seal)
 * Permanent NVRAM persistence flag generation (`<setupState state="SETUP_LEAVE" />`)
 
-### System Traps & Speaker Protection
+#### System Traps & Speaker Protection
 * Dummy radio base URL generation (streaming check bypass)
 * DRM streaming token mocks
 * Boot-loop prevention (Account deletion trap)
 * Telemetry and analytics blocking
-* Firmware update bypass 
+* Firmware update bypass
 * Factory reset request spoofing (Fake `201 Created`)
 * Device rename and profile sync spoofing
 
-### Server Stability & Caching
+#### Server Stability & Caching
 * Real-time speaker identity fetching (MAC, Serial, Name)
 * Local identity caching to handle heavy network traffic
 * Failsafe request dropping (protects busy speakers from accidental preset wipes)
 
+---
+
 ## 📺 <img src="public/images/hybrid_icon.png" width="20"> Demo Videos
+
 <a href="https://youtu.be/R6mbTRBEBYA" target="_blank">
   <img src="https://img.youtube.com/vi/R6mbTRBEBYA/maxresdefault.jpg" alt="Bose SoundTouch Hybrid 2026 Initial Demo Video" width="300">
 </a>
@@ -89,6 +121,11 @@
   <img src="https://img.youtube.com/vi/ERsoMmyOpEU/maxresdefault.jpg" alt="Bose SoundTouch Hybrid 2026 V3 Enhancements Demo Video" width="300">
 </a>
 
+<!-- FLAG: add the v4 demo video link here once it exists -->
+
+---
+
+*(Installations section continues as already drafted in `INSTALL_DRAFT.md` — not duplicated here.)*
 
 
 ---
