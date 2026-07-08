@@ -1,3 +1,4 @@
+
 ## Installations
 
 ### <img src="public/images/ma_icon.png" width="18"> Setting up Music Assistant (MASS)
@@ -16,9 +17,9 @@ Install Music Assistant (MASS): ***version 2.9.5 or later is required***
 
 3. **Add/Configure Player Providers:** Add the DLNA provider. If desired also add AirPlay provider.
    * **DLNA is the recommended "Preferred Output Protocol"** for SoundTouch Hybrid, based on experience with greater stability and responsiveness:
-   - It's the original protocol built into the SoundTouch speakers' internal OS; AirPlay was added later as a software add-on.
-   - SoundTouch Hybrid's self-healing, latency management, and state sync logic are all optimized for DLNA.
-   - The physical remote-control cabability and hijacks or more complete with DLNA including next/prev track and a more responsive pause/play.
+      - It's the original protocol built into the SoundTouch speakers' internal OS; AirPlay was added later as a software add-on.
+      - SoundTouch Hybrid's self-healing, latency management, and state sync logic are all optimized for DLNA.
+      - The physical remote-control cabability and hijacks are more functional using DLNA including next/prev track and a more responsive pause/play.
    * **AirPlay** is supported. It does provide continuous live track-title updates on the speaker's LED display where as Music Assistant's DLNA stream currently only updates the speakers's LED display for the first track of a multi-track stream.
 
 4. **Add/Configure Music Sources:** Add your streaming providers (Spotify, TuneIn, local NAS, etc). Uncheck any options to sync/import/cache the source into the local Music Assistant database. This ensures your your providers are live rather than copied to a local cache 
@@ -57,11 +58,13 @@ Install Music Assistant (MASS): ***version 2.9.5 or later is required***
    * <img width="577" height="221" alt="image" src="https://github.com/user-attachments/assets/f0a7d781-adce-4559-a81e-868e96a7e786" />
 
 4. **Configure `.env`:** Open the generated `.env` and fill in:
-   * **APP_IP** — this server's own LAN IP. **MASS_IP / MASS_PORT** — your Music Assistant server's IP (port defaults to 8095).
-   * **Authentication** — either **MASS_TOKEN** (an auth token generated from Music Assistant's own Settings page), or **MASS_USERNAME** + **MASS_PASSWORD**. Provide one method, not both.
-   * **MASS_CONTAINER_NAME** — required so SoundTouch Hybrid can restart Music Assistant automatically when needed:
+   * **APP_IP / APPS_PORT**: Bose SOundtouch Hybrid's own LAN IP. (port defaults to 3000).
+   * **MASS_IP / MASS_PORT**: Music Assistant server's IP (port defaults to 8095).
+   * **Authentication**: either **MASS_TOKEN** (an auth token generated from Music Assistant's own Settings page), or **MASS_USERNAME** + **MASS_PASSWORD**: Provide one method, not both.
+   * **MASS_CONTAINER_NAME**:
      - Standalone MASS Docker container: the container's actual name (commonly `music-assistant-server`, or whatever you named it).
-     - MASS running inside Home Assistant: click **Music Assistant** in the HA sidebar, then copy everything after the port number and slash from the browser's address bar — e.g. `http://<ha-ip>:8123/d5369777_music_assistant` → `d5369777_music_assistant`. If HA/MASS runs on a separate machine from SoundTouch Hybrid, also set **HA_TOKEN** (a Home Assistant long-lived access token) and **HA_PORT**.
+     - MASS running inside Home Assistant: click **Music Assistant** in the HA sidebar, then copy everything after the port number and slash from the browser's address bar — e.g. `http://<ha-ip>:8123/d5369777_music_assistant` → `d5369777_music_assistant`. 
+   * **HA_TOKEN / HA_PORT**: If HA/MASS runs on a separate machine from SoundTouch Hybrid set a Home Assistant long-lived access token (port defaults to 8123).
 
 5. **Restart the Container:** Once `.env` is filled in, restart to launch SoundTouch Hybrid.
    * NAS/GUI: click **Restart** on the container.
