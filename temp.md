@@ -1,4 +1,3 @@
-
 ## Installations
 
 ### <img src="public/images/ma_icon.png" width="18"> Setting up Music Assistant (MASS)
@@ -75,19 +74,18 @@ Install Music Assistant (MASS): ***version 2.9.5 or later is required***
 
 ### Home Assistant Add-on
 
-*(Identical to `ha-addon/DOCS.md` — kept in sync by copy-paste, not a live include.)*
+1. **Before you install:** Music Assistant must already be installed and fully working — see "Setting up Music Assistant" above.
 
-**Before you install:** Music Assistant must already be installed and fully working — see "Setting up Music Assistant" above.
-
-1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add:
+2. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add:
    `https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026`
-2. Find **Bose SoundTouch Hybrid** in the store and click **Install**.
-3. Open the **Configuration** tab before starting it:
+3. Find **Bose SoundTouch Hybrid** in the store and click **Install**.
+4. Open the **Configuration** tab before starting it:
    * **App IP / Music Assistant IP** — leave both blank if Music Assistant runs on this same HA instance; the add-on auto-detects the host address. Only set **Music Assistant IP** if MASS runs elsewhere.
    * **Music Assistant Auth Token** — generate one from MASS's own Settings page.
    * **Music Assistant Username / Password** — an alternative to the token above. Both methods are fully supported; provide one or the other, not both.
-4. Start the add-on. On first boot it scans your network and finds your SoundTouch speakers automatically.
-5. Open the add-on's panel from the Home Assistant sidebar to use the web app. It's also reachable directly at `http://<your-HA-host-IP>:3000/control.html`.
-6. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:3000/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
+5. Start the add-on. On first boot it scans your network and finds your SoundTouch speakers automatically.
+6. Open the add-on's panel from the Home Assistant sidebar to use the web app. It's also reachable directly at `http://<your-HA-host-IP>:3000/control.html`.
+7. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:3000/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
 
+---
 ---
