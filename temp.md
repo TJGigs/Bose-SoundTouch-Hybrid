@@ -2,22 +2,22 @@
 
 **A free, open-source private cloud streaming service replacing the Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch Speakers and Wireless Link. Physical Presets Included!**
 
-<img src="public/images/hybrid_icon.png" width="20"> **This solution provides a self-hosted "Private Cloud" to simulate and replace the deactivated Bose Cloud Service.** <img src="public/images/bose_icon.png" width="20">  It runs locally on your network (NAS, PC, or as a Home Assistant add-on) and intercepts and actively manages the complex server handshakes required to keep the SoundTouch Speakers authenticated and functional, providing the **same phone-free audio streaming capabilities** as the original SoundTouch Application and Speakers.
+<img src="public/images/hybrid_icon.png" width="20"> **This solution provides a self-hosted "Private Cloud" to simulate and replace the deactivated Bose Cloud Service.** It runs locally on your network (NAS, PC, or as a Home Assistant add-on) and intercepts and actively manages the complex server handshakes required to keep the SoundTouch Speakers authenticated and functional, providing the **same phone-free audio streaming capabilities** as the original SoundTouch Application and Speakers.
 
 ---
 
 ## ⚠️ Upgrading to v4
 
-* **New `.env` schema.** Startup copies a fresh `.env` template into your directory and backs up your old one — don't reuse your old `.env` file directly; re-enter your values into the new one.
-* **New `bose-soundtouch-hybrid.yml` required.** Download the current version — it has install changes beyond just the version tag. Don't reuse an old copy.
-  [`bose-soundtouch-hybrid.yml`](https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/blob/main/bose-soundtouch-hybrid.yml)
+* **New `.env` schema.** Startup copies a fresh `.env` template into your directory and backs up your old file. Re-enter your values into the new `.env`.  Don't reuse your old `.env` file 
+* **New [`bose-soundtouch-hybrid.yml`](https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026/blob/main/bose-soundtouch-hybrid.yml) required.** Download the current version.  Don't reuse an old copy.
+  
 * Full upgrade steps: see [Installations](#installations) below.
 
 ---
 
 ## ✨ V4 Enhancements
 
-*(Full descriptions of everything below live in **Application Key Features** further down — this is just a quick "what's new since v3.8" for returning users.)*
+*(Full descriptions of all features below in **Application Key Features**. This is quick "What's new" for existing users.)*
 
 * ✅ Extended Presets — 12 total preset slots via double-tap, up from 6
 * ✅ Dynamic real-time lost-preset detection & auto-heal
@@ -34,7 +34,7 @@
 * ✅ Physical remote-control parity across DLNA & AirPlay (#120, #57, #70, #63)
 * ✅ Persistent, disk-backed auto-resume presets — survive container rebuilds, not just app restarts (#112)
 * ✅ Native Home Assistant Add-on — Ingress UI, Configuration tab, native Supervisor-token MASS restart
-* ✅ Fully automated Bose Cloud injection sequence — no USB stick, ever
+* ✅ Fully automated Bose Cloud injection sequence — no USB stick, no manual firmware step
 
 <details>
 <summary><strong>✨ V3 Enhancements (historical — click to expand)</strong></summary>
@@ -46,8 +46,8 @@
 * ✅ **Live Console Logging:** Integrated a real-time server log viewer directly into the System Tools page.
 * ✅ **Streamlined GHCR Deployment:** Transitioned from manual repository cloning to a pre-built GitHub Container Registry image. The system now automatically generates required configuration templates on first boot and performs startup configuration and version validation checks.
 * ✅ **Improved State Synchronization:** Completely replaced backend REST API polling with a more efficient, stable, and event-driven WebSocket architecture for improved speaker state and audio stream tracking.
-* ✅ **Music Assistant Native DLNA Metadata:** Takes advantage of Music Assistant's improved DLNA streaming by reading track metadata directly from the audio stream. The original API-based fetch has been streamlined into a lightweight "Watchdog" function that executes as a fallback only when needed. *(MASS v2.8.5 or later required)*
-* ✅ **Music Assistant Smart Startup & Version Checks:** On boot, the app now verifies the Music Assistant version and automatically launches the container if it detects it isn't running. *(MASS v2.8.5 or later required)*
+* ✅ **Music Assistant Native DLNA Metadata:** Takes advantage of Music Assistant's improved DLNA streaming by reading track metadata directly from the audio stream. The original API-based fetch has been streamlined into a lightweight "Watchdog" function that executes as a fallback only when needed. 
+* ✅ **Music Assistant Smart Startup & Version Checks:** On boot, the app now verifies the Music Assistant version and automatically launches the container if it detects it isn't running.
 
 </details>
 
@@ -59,9 +59,9 @@
 
 * **100% Local Control:** Everything — your speaker credentials, playback control, and preset logic — stays on your own LAN. No cloud dependency, no external Bose servers, no phone-home telemetry.
 
-* **Complete App Replacement:** One responsive web app for Desktop and Mobile replaces the (now-defunct) SoundTouch app entirely — streaming, speaker maintenance, initial setup, factory resets, and WiFi provisioning, all in one place. Includes the one-time automated injection of a speaker's internal cloud simulation config, so a factory-reset or brand-new speaker joins the system with zero manual XML or USB work.
+* **Complete App Replacement:** One responsive web app for Desktop and Mobile replaces the (now-defunct) SoundTouch app entirely — streaming, speaker maintenance, initial setup, factory resets, and WiFi provisioning, all in one place. Includes the one-time automated injection of a speaker's internal cloud simulation config, so a factory-reset or brand-new speaker joins the system automatically — no USB stick, no manual firmware step.
 
-* **Fully Automated Bose Cloud Simulation:** A self-hosted replacement for the discontinued Bose Cloud, running the full BMX Registry/MargeID authentication handshake locally so every speaker stays "logged in" and fully functional indefinitely. The entire cloud-redirect and preset-injection sequence runs automatically on first boot — no USB stick, no manual firmware step, ever.
+* **Fully Automated Bose Cloud Simulation:** A self-hosted replacement for the discontinued Bose Cloud, running the full BMX Registry/MargeID authentication handshake locally so every speaker stays "logged in" and fully functional indefinitely. The entire cloud-redirect and preset-injection sequence runs automatically on first boot — no USB stick, no manual firmware step.
 
 * **Extended Presets — 12 Slots, Not 6:** Double-tap any of the six physical preset buttons to unlock six additional slots (1→11, 2→22, and so on), doubling the presets available per speaker without touching the hardware or opening the app.
 
@@ -87,7 +87,7 @@
 
 * **MASS Recent-Items Cache Warming:** Prefetches recently-played items from Music Assistant on boot, so the Library page's "Recent" view loads instantly instead of waiting on a cold query.
 
-### ⚙️ Under-the-Hood Reliability
+### ⚙️ Under-the-Hood 
 
 * **Live Console Logging:** A real-time server log viewer built directly into the Tools page — no SSH or `docker logs` needed to see what the app is doing.
 
@@ -97,7 +97,7 @@
 
 * **Event-Driven State Sync:** Speaker state and playback tracking run on a WebSocket architecture rather than REST polling, for faster, more reliable updates.
 
-* **Resilient Music Assistant Integration:** Reuses a cached MASS auth token instead of re-authenticating on every call, restarts MASS automatically through whichever path fits your setup (native HA Supervisor, Docker socket, or a long-lived HA token for split installs), reads track metadata natively from the DLNA stream, and verifies MASS's version/health on every boot.
+* **Resilient Music Assistant Integration:** Reuses a cached MASS auth token instead of re-authenticating on every call, restarts MASS amd protocol previders automatically through whichever path fits your setup (native HA Supervisor, Docker socket, or a long-lived HA token for split installs), reads track metadata natively from the DLNA stream, and verifies MASS's version/health on every boot.
 
 ---
 
@@ -204,13 +204,13 @@ Install Music Assistant (MASS): ***version 2.9.5 or later is required***
 
 ### <img src="public/images/hybrid_icon.png" width="18"> Installing SoundTouch Hybrid
 
-#### Common to All Install Methods
+### Common to All Install Methods
 
-* **Redirect to Local Cloud:** Happens automatically on first boot — no USB stick, no manual firmware injection. Confirmed in the console/Pre-Flight log.
+* **Redirect to Local Cloud:** Happens automatically on first boot — no USB stick, no manual firmware step. Confirmed in the console/Pre-Flight log.
 * **Speaker Discovery:** Runs automatically on first boot and re-syncs on every subsequent boot — you never manually look up, enter, or edit a speaker list. Discovery scans the same subnet as your Music Assistant server, so your SoundTouch speakers need to be on that same subnet to be found.
 * *A static IP address for each speaker is recommended, however, dynamic speaker IP addresses are supported.*
 
-#### Standalone Docker (NAS / PC)
+### Standalone Docker (NAS / PC)
 
 1. **Create Directory & Download the Compose File:** Create a folder named `bose-soundtouch-hybrid` on your NAS or server. Download `bose-soundtouch-hybrid.yml` from this repository into it.
 
@@ -241,20 +241,18 @@ Install Music Assistant (MASS): ***version 2.9.5 or later is required***
 
 6. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:3000/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
 
-#### Home Assistant Add-on
+### Home Assistant Add-on
 
-*(Identical to `ha-addon/DOCS.md` — kept in sync by copy-paste, not a live include.)*
+1. **Before you install:** Music Assistant must already be installed and fully working — see "Setting up Music Assistant" above.
 
-**Before you install:** Music Assistant must already be installed and fully working — see "Setting up Music Assistant" above.
-
-1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add:
+2. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add:
    `https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026`
-2. Find **Bose SoundTouch Hybrid** in the store and click **Install**.
-3. Open the **Configuration** tab before starting it:
+3. Find **Bose SoundTouch Hybrid** in the store and click **Install**.
+4. Open the **Configuration** tab before starting it:
    * **App IP / Music Assistant IP** — leave both blank if Music Assistant runs on this same HA instance; the add-on auto-detects the host address. Only set **Music Assistant IP** if MASS runs elsewhere.
    * **Music Assistant Auth Token** — generate one from MASS's own Settings page.
    * **Music Assistant Username / Password** — an alternative to the token above. Both methods are fully supported; provide one or the other, not both.
-4. Start the add-on. On first boot it scans your network and finds your SoundTouch speakers automatically.
-5. Open the add-on's panel from the Home Assistant sidebar to use the web app. It's also reachable directly at `http://<your-HA-host-IP>:3000/control.html`.
-6. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:3000/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
+5. Start the add-on. On first boot it scans your network and finds your SoundTouch speakers automatically.
+6. Open the add-on's panel from the Home Assistant sidebar to use the web app. It's also reachable directly at `http://<your-HA-host-IP>:3000/control.html`.
+7. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:3000/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
 
