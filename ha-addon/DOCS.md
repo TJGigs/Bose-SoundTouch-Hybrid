@@ -58,9 +58,9 @@ Install Music Assistant (MASS): ***version 2.9.5 or later is required***
 
 ---
 
-## Why This Runs Differently Here
+## Notes Specific to the Home Assistant Install
 
-- This add-on requires full network access — this is what lets your physical speakers reach the add-on directly at your HA host's real LAN address for the preset backdoor. It cannot run with restricted networking.
+- This add-on requires **host networking** (`host_network: true`) — this is what lets your physical speakers reach the add-on directly at your HA host's real LAN address for the preset backdoor. It requires full network access and cannot run with bridge or otherwise restricted networking.
 - This add-on can request Supervisor restart the Music Assistant add-on on your behalf if it detects MASS isn't running — this uses Home Assistant's own Supervisor API and needs no separate token from you.
 
 ## Getting Help
