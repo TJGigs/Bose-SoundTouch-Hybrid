@@ -280,7 +280,7 @@ router.post('/admin/toggle_source', async(req, res) => {
 
         } else if (currentSource === 'BLUETOOTH') {
             console.log(`[Admin] Toggling ${ip} from BLUETOOTH to WI-FI (Via Silent Stream)`);
-            const host = `${process.env.APP_IP}:${process.env.APP_PORT}`;
+            const host = req.get('host');
             // Standard Bose tag for custom URLs
             nextPayload = `<ContentItem source="LOCAL_INTERNET_RADIO" location="http://${host}/silent.mp3"><itemName>Ready</itemName></ContentItem>`;
             mass.setPresetMemory(ip, 0);

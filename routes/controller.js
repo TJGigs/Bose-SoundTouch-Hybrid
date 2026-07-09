@@ -3,6 +3,7 @@ const router = express.Router();
 const axios = require('axios');
 const xml2js = require('xml2js');
 const mass = require('./mass');
+const utils = require('./utils');
 const deviceState = require('../device_state');
 
 // --- CONFIGURATION ---
@@ -33,28 +34,14 @@ async function handleMassTransport(ip, key, currentState) {
     if (key === 'NEXT_TRACK') { await mass.next(ip); }
     else if (key === 'PREV_TRACK') { await mass.previous(ip); }
     else if (key === 'PLAY_PAUSE') {
-
-        // =======================================================
-        // 🎯 AIRPLAY TEARDOWN GUARD: A prior UI pause on this speaker may
-        // still be tearing down (12-14s). currentState.playStatus is stale
-        // during that window, so isActuallyPlaying can't be trusted — it
-        // would re-send PAUSE on what the user means as a resume. Queue the
-        // resume instead, same as the physical-remote deferred-resume path.
-        // =======================================================
-        if (deviceState.isAirplayTearingDown(ip)) {
-            console.log(`[Control] AirPlay teardown in progress for ${ip}. Queuing resume for when it lands.`);
-            deviceState.setExpectation(ip, 'PLAY_STATUS', 'PLAYING');
-            deviceState.armAirplayPendingResume(ip);
-            return;
-        }
-
+        
         // =======================================================
         // 🛡️ THE V2 SHIELD: Set the expectation BEFORE executing
         // =======================================================
         const targetState = isActuallyPlaying ? 'NOT_PLAYING' : 'PLAYING';
         console.log(`[Control] Setting STATE Lock for PLAY_PAUSE (Target: ${targetState})`);
         deviceState.setExpectation(ip, 'PLAY_STATUS', targetState);
-
+        
         if (isActuallyPlaying) {
             console.log(`[Control] Speaker is Playing. Sending explicit PAUSE.`);
             if (currentState.source === 'AIRPLAY') {
@@ -328,6 +315,22 @@ router.post('/balance', async(req, res) => {
     }
 });
 
+router.post('/play_content', async(req, res) => {
+    const { ip, contentItem } = req.body;
+    mass.setPresetMemory(ip, 0);
+    deviceState.clearSession(ip);
+
+    let xml = `<ContentItem source="${contentItem.source}" type="${contentItem.type}" location="${contentItem.location}" sourceAccount="${contentItem.sourceAccount || ''}" isPresetable="${contentItem.isPresetable || 'true'}"><itemName>${contentItem.itemName}</itemName><containerArt>${contentItem.containerArt || ''}</containerArt></ContentItem>`;
+
+    const success = await sendBoseXml(ip, 'select', xml);
+    if (success) {
+        deviceState.setExpectation(ip, 'TRACK', null, '');
+        res.send({ success: true });
+    } else {
+        res.status(500).send({ error: "Selection failed" });
+    }
+});
+
 router.post('/join', async(req, res) => {
     const { slaveIp, targetMasterIp } = req.body;
     if (SYNC_LOCKS.has(slaveIp)) return res.send({ success: false, message: "Sync Busy" });
@@ -496,7 +499,7 @@ router.post('/zone_volume', async(req, res) => {
 });
 
 // =================================================================================
-// HEALTH CHECK & AUTO-RECOVERY INTERCEPTOR
+// 🩺 HEALTH CHECK & AUTO-RECOVERY INTERCEPTOR
 // If the UI asks for health and the system is down, check preferences BEFORE 
 // telling the UI. If auto-recover is on, aggressively fix it and fake a healthy response.
 // =================================================================================
@@ -529,7 +532,7 @@ router.get('/health', async (req, res) => {
             console.error(`[Auto-Recovery] ⚠️ Failed to read settings or execute recovery: ${e.message}`);
         }
     } 
-    // 2. If it's broken BUT currently in the middle of fixing it
+    // 2. If it's broken BUT   currently in the middle of fixing it
     else if (!isHealthy && isAutoRecovering) {
         isHealthy = true; // tell this to duplicate tabs so they don't pop up the red modal
     }

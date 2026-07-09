@@ -5,6 +5,8 @@ const axios = require('axios');
 const xml2js = require('xml2js');
 const net = require('net');
 const { pushPresetsToSpeaker, speakerHasHybridPresets } = require('./utils');
+// ⚠️ WARNING: SET THIS TO false BEFORE GITHUB RELEASE!
+const FORCE_TEST_JANITOR = false;
 
 async function auditSpeakerClock(ip, name) {
     try {
@@ -78,7 +80,7 @@ function injectPort17000Commands(ip, commands) {
 
 			// Sequential injection with universal NVRAM delays
             for (let i = 0; i < commands.length; i++) {
-                if (!isSocketAlive) break; // THE FIX: Immediately halt injection if socket died
+                if (!isSocketAlive) break; // 🌟 THE FIX: Immediately halt injection if socket died
 
                 let cmdLog = commands[i].split(' ')[1] || 'command';
                 
@@ -105,8 +107,30 @@ function injectPort17000Commands(ip, commands) {
 }
 
 // THE NATIVE TELNET JANITOR (Upgraded with Error Trapping & Test Mode)
-function telnetJanitor(ip) {
+function telnetJanitor(ip, targetIp = 'all') { // 🌟 ADDED targetIp HERE
     return new Promise(async (resolve) => {
+        
+		// ==========================================
+        // 🧪 TEST OVERRIDE MODE (Bypasses Port 23)
+        // ==========================================
+        // 🌟 ONLY TRIGGER IF A SPECIFIC SPEAKER WAS FORCED IN THE UI
+        if (FORCE_TEST_JANITOR && targetIp === ip) { 
+            console.log(`   ├─ 🚨 [TEST MODE] Forcing Janitor sequence on ${ip} without USB...`);
+            console.log(`   ├─ [Janitor] Logging in as root...`);
+            console.log(`   ├─ [Janitor] 🧹 Deleting legacy V1/V2 OverrideSdkPrivateCfg.xml...`);
+            console.log(`   ├─ [Janitor] ✅ File successfully deleted from memory.`);
+            console.log(`   ├─ [Janitor] Rebooting to clear memory...`);
+            
+			// 🌟 REAL HARDWARE REBOOT VIA PORT 17000 FOR TIMING TEST
+            await injectPort17000Commands(ip, ['sys reboot']);
+            
+            setTimeout(() => resolve(true), 500);
+            return; // 🛑 EXIT EARLY! Do not run the real telnet code below.
+        }
+
+        // ==========================================
+        // 🏭 REAL PRODUCTION MODE
+        // ==========================================
         const client = new net.Socket();
         client.setTimeout(2000); // Give up fast if port 23 is closed
         let shellOutput = "";
@@ -234,7 +258,7 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
             // ==========================================================
             // PHASE 1: PRE-FLIGHT JANITOR (Clean old hijack files)
             // ==========================================================
-            const justCleaned = await telnetJanitor(speaker.ip);
+            const justCleaned = await telnetJanitor(speaker.ip, forceInjectTarget); 
             if (justCleaned) {
                 const isBack = await waitForJanitorReboot(speaker.ip);
                 if (!isBack) {
@@ -357,4 +381,4 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
     return { success: true, rebootedIps };
 }
 
-module.exports = { runSetup };
+module.exports = { runSetup, injectPort17000Commands };

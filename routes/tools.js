@@ -33,8 +33,8 @@ function getSettings() {
         presetWatchdogSpeakers: [],
         searchMenuOrder: [
             { key: 'global',           name: 'Global',       icon: null,                       enabled: true, sourceType: 'global' },
-            { key: 'tunein',           name: 'TuneIn Radio', icon: 'images/TuneIn_icon.png',  enabled: true, sourceType: 'radio'  },
-            { key: 'filesystem_local', name: 'Local NAS',    icon: 'images/nas_icon.png',     enabled: true, sourceType: 'music'  }
+            { key: 'tunein',           name: 'TuneIn Radio', icon: '/images/TuneIn_icon.png',  enabled: true, sourceType: 'radio'  },
+            { key: 'filesystem_local', name: 'Local NAS',    icon: '/images/nas_icon.png',     enabled: true, sourceType: 'music'  }
         ]
     };
 }

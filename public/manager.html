@@ -21,10 +21,10 @@
 	</div>
     
 	<div class="nav-center-group">
-        <div class="global-link" onclick="window.location.href='control.html'">Remote Control</div>
-        <div class="global-link active" onclick="window.location.href='manager.html'">Library Manager</div>
-        <div class="global-link" onclick="window.location.href='admin.html'">Speaker Admin</div>
-        <div class="global-link nav-hide-mobile" onclick="window.location.href='tools.html'">System Tools</div>
+        <div class="global-link" onclick="window.location.href='/control.html'">Remote Control</div>
+        <div class="global-link active" onclick="window.location.href='/manager.html'">Library Manager</div>
+        <div class="global-link" onclick="window.location.href='/admin.html'">Speaker Admin</div>
+        <div class="global-link nav-hide-mobile" onclick="window.location.href='/tools.html'">System Tools</div>
     </div>
     
     <div class="speaker-selector-container">
@@ -265,13 +265,27 @@
           applyTheme();
   });
 
+  // Legacy key remapping for any installs where migration hasn't run yet
+  const LEGACY_KEY_MAP = { 'radio': 'tunein', 'nas': 'filesystem_local' };
+
   // --- FETCH GLOBAL SETTINGS ---
   async function loadUserPreferences() {
       try {
-          const settings = await api('api/admin/settings');
+          const settings = await api('/api/admin/settings');
           if (settings) extendedPresetsEnabled = settings.doubleTapPresets === true;
           if (settings && Array.isArray(settings.searchMenuOrder) && settings.searchMenuOrder.length > 0) {
-              currentSearchOrder = settings.searchMenuOrder;
+              let raw = settings.searchMenuOrder;
+              // Defensive: migrate legacy string array if server hasn't converted it yet
+              if (typeof raw[0] === 'string') {
+                  raw = raw.map(legacyKey => ({
+                      key:        LEGACY_KEY_MAP[legacyKey] || legacyKey,
+                      name:       { global: 'Global', radio: 'TuneIn Radio', nas: 'Local NAS', spotify: 'Spotify' }[legacyKey] || legacyKey,
+                      icon:       { spotify: '/images/spotify_icon.png', radio: '/images/TuneIn_icon.png', nas: '/images/nas_icon.png' }[legacyKey] || null,
+                      enabled:    true,
+                      sourceType: legacyKey === 'radio' ? 'radio' : legacyKey === 'global' ? 'global' : 'music'
+                  }));
+              }
+              currentSearchOrder = raw;
           }
       } catch (e) {
           console.error("Failed to load global search order from server. Using defaults.", e);
@@ -303,7 +317,7 @@
   }
 
   async function loadProviders() {
-      const data = await api('api/manager/providers');
+      const data = await api('/api/manager/providers');
       if (Array.isArray(data))
           globalProviders = data;
 
@@ -337,7 +351,7 @@
       container.innerHTML = visibleTabs.map(entry => {
           const iconHtml = entry.key === 'global'
               ? `<span style="font-size:1.2em;">🌍</span>`
-              : `<img src="${entry.icon || 'images/ma_icon.png'}" alt="${entry.name}" onerror="this.src='images/ma_icon.png'" style="height:16px; width:auto; object-fit:contain;">`;
+              : `<img src="${entry.icon || '/images/ma_icon.png'}" alt="${entry.name}" onerror="this.src='/images/ma_icon.png'" style="height:16px; width:auto; object-fit:contain;">`;
           return `<button class="source-btn" onclick="setSource('${entry.key}')">${iconHtml} ${entry.name}</button>`;
       }).join('');
 
@@ -376,8 +390,8 @@
       const select = document.getElementById('global-speaker');
       try {
           const [maPlayers, stDevices] = await Promise.all([
-                      api('api/manager/players'),
-                      api('api/status')
+                      api('/api/manager/players'),
+                      api('/api/status')
                   ]);
 
           if (!stDevices || !stDevices.length) {
@@ -583,7 +597,7 @@
           return;
       }
 
-      const devices = await api('api/status');
+      const devices = await api('/api/status');
       if (Array.isArray(devices)) {
           const device = devices.find(d => d.ip === targetIp);
 
@@ -697,7 +711,7 @@
       if (!confirm(`Are you sure you want to play "${item.name}" on ${speakerName}?`))
           return;
 
-      api('api/manager/play_now', {
+      api('/api/manager/play_now', {
           method: 'POST',
           body: JSON.stringify({
               uri: item.uri,
@@ -840,7 +854,7 @@
       const entry = currentSearchOrder.find(e => e.key === state.source);
       const sourceType = entry ? entry.sourceType : 'music';
 
-      const data = await api('api/manager/search', {
+      const data = await api('/api/manager/search', {
           method: 'POST',
           body: JSON.stringify({
               query: q,
@@ -871,7 +885,7 @@
       const box = document.getElementById('recents-results');
       box.innerHTML = '<div style="padding:20px; color:#888">Loading Recents...</div>';
 
-      const data = await api('api/manager/recents');
+      const data = await api('/api/manager/recents');
       if (Array.isArray(data)) {
           box.innerHTML = data.map(i => renderCard(i, false, true)).join('');
       } else {
@@ -880,7 +894,7 @@
   }
 
   async function loadLibrary() {
-      const library = await api('api/manager/library');
+      const library = await api('/api/manager/library');
       if (!Array.isArray(library))
           return;
 
@@ -915,9 +929,7 @@
       const allFavs = library.filter(i => i.slot === 0);
 
       // 1. "Outer Join" logic: Merge MA Global Providers with local unique Favorites
-      // Strip instance IDs (e.g., spotify--xyz -> spotify), same convention as routes/manager.js,
-      // so a second provider instance doesn't show up as its own duplicate dropdown entry.
-      const uniqueProviders = [...new Set(allFavs.map(i => (i.provider || 'unknown').split('--')[0]))];
+      const uniqueProviders = [...new Set(allFavs.map(i => i.provider || 'unknown'))];
       const favProvSelect = document.getElementById('fav-provider-filter');
 
       if (favProvSelect) {
@@ -961,9 +973,7 @@
           filteredFavs = filteredFavs.filter(i => i.type === state.favFilter);
       }
       if (favProvSelect && favProvSelect.value !== 'all') {
-          // Compare stripped domains so an instance-suffixed favorite (e.g. spotify--xyz)
-          // still matches the plain "spotify" dropdown selection.
-          filteredFavs = filteredFavs.filter(i => (i.provider || 'unknown').split('--')[0] === favProvSelect.value);
+          filteredFavs = filteredFavs.filter(i => (i.provider || 'unknown') === favProvSelect.value);
       }
 
       const favsHtml = filteredFavs.map(i => renderCard(i, true, true, true)).join('');
@@ -1057,7 +1067,7 @@
       const orig = btn ? btn.innerHTML : null;
       if (btn) { btn.disabled = true; btn.textContent = '...'; }
 
-      await api('api/manager/save', {
+      await api('/api/manager/save', {
           method: 'POST',
           body: JSON.stringify(data)
       });
@@ -1073,7 +1083,7 @@
       // Look up the item to see if it's a Favorite or a Preset
       let isFavorite = false;
       try {
-          const library = await api('api/manager/library');
+          const library = await api('/api/manager/library');
           const item = library.find(i => i.uuid === uuid);
           if (item && item.slot === 0)
               isFavorite = true;
@@ -1085,7 +1095,7 @@
            : "✕ CLEAR this item from the preset slot? (It will stay in your Favorites)";
 
       if (confirm(`Are you sure you want to ${warningText}`)) {
-          await api(`api/manager/delete/${uuid}`, {
+          await api(`/api/manager/delete/${uuid}`, {
               method: 'DELETE'
           });
           if (isHistory)
@@ -1097,6 +1107,10 @@
 
   // --- SPEAKER LIST MODAL (Secondary) ---
   // Used when clicking "Play" from the search results to confirm target speaker.
+
+  async function playItem(uuid) {
+      openSpeakerModal(uuid);
+  }
 
   function openSpeakerModal(uuid) {
       selectedUuid = uuid;
@@ -1110,8 +1124,8 @@
 
   async function renderSpeakerList() {
       const [devices, maPlayers] = await Promise.all([
-                  api('api/status'),
-                  api('api/manager/players')
+                  api('/api/status'),
+                  api('/api/manager/players')
               ]);
       if (!Array.isArray(devices))
           return;
@@ -1144,7 +1158,7 @@
 
   async function confirmPlay(ip, btn) {
       if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
-      await api('api/manager/play', {
+      await api('/api/manager/play', {
           method: 'POST',
           body: JSON.stringify({
               uuid: selectedUuid,
@@ -1170,7 +1184,7 @@
       if (!name)
           return alert("❌ Please enter a Station Name.");
 
-      const res = await api('api/manager/play_stream', {
+      const res = await api('/api/manager/play_stream', {
           method: 'POST',
           body: JSON.stringify({
               player_id: playerId,
@@ -1192,7 +1206,7 @@
       const box = document.getElementById('custom-history-results');
       box.innerHTML = '<div style="padding:20px; color:#888">Loading History...</div>';
 
-      const library = await api('api/manager/library');
+      const library = await api('/api/manager/library');
       if (!Array.isArray(library))
           return;
 
@@ -1211,7 +1225,7 @@
       const orig = btn ? btn.innerHTML : null;
       if (btn) { btn.disabled = true; btn.textContent = '...'; }
 
-      const library = await api('api/manager/library');
+      const library = await api('/api/manager/library');
       const item = library.find(i => i.uuid === uuid);
       if (!item) return;
 
@@ -1221,7 +1235,7 @@
           slot: 0
       };
 
-      await api('api/manager/save', {
+      await api('/api/manager/save', {
           method: 'POST',
           body: JSON.stringify(data)
       });
@@ -1232,7 +1246,7 @@
   // Updated deleteItem to support optional refresh of history
   async function deleteItem(uuid, isHistory = false) {
       if (confirm("Delete this item?")) {
-          await api(`api/manager/delete/${uuid}`, {
+          await api(`/api/manager/delete/${uuid}`, {
               method: 'DELETE'
           });
           if (isHistory)

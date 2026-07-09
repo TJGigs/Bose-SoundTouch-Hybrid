@@ -1,7 +1,7 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.8.5";
+const CURRENT_VERSION = "v3.8.3";
 const ENV_SCHEMA_VERSION = "v4.0";
 const SETTINGS_SCHEMA_VERSION = "v3.8";
 const minReq = [2, 9, 4]; //MASS VERSION
@@ -162,8 +162,8 @@ const settingsPath = path.join(USER_ROOT, 'settings.json');
 
 const DEFAULT_SEARCH_MENU_ORDER = [
     { key: 'global',           name: 'Global',       icon: null,                       enabled: true, sourceType: 'global' },
-    { key: 'tunein',           name: 'TuneIn Radio', icon: 'images/TuneIn_icon.png',  enabled: true, sourceType: 'radio'  },
-    { key: 'filesystem_local', name: 'Local NAS',    icon: 'images/nas_icon.png',     enabled: true, sourceType: 'music'  }
+    { key: 'tunein',           name: 'TuneIn Radio', icon: '/images/TuneIn_icon.png',  enabled: true, sourceType: 'radio'  },
+    { key: 'filesystem_local', name: 'Local NAS',    icon: '/images/nas_icon.png',     enabled: true, sourceType: 'music'  }
 ];
 
 const DEFAULT_SETTINGS = {
@@ -174,9 +174,9 @@ const DEFAULT_SETTINGS = {
     mobileAutoSortSpeakers: true,
     scheduledSpeakerAudit: false,
     scheduledAuditHour: 2,
-    scheduledRestart: true,
+    scheduledRestart: false,
     scheduledRestartHour: 3,
-    includeReboot: true,
+    includeReboot: false,
     doubleTapPresets: false,
     presetPreview: false,
     restrictedMode: false,
@@ -569,8 +569,8 @@ if (!isReady) {
         let massHealth = { isOnline: false, version: "Unknown" };
         let healthAttempts = 0;
         
-        // Loop every 2 seconds until the Health Check passes (Max 90 seconds)
-        while (!massHealth.isOnline && healthAttempts < 45) {
+        // Loop every 2 seconds until the Health Check passes (Max 30 seconds)
+        while (!massHealth.isOnline && healthAttempts < 15) {
             await new Promise(r => setTimeout(r, 2000)); 
             massHealth = await getMassHealth();
             if (!massHealth.isOnline) {

@@ -3,7 +3,12 @@ name: Build and Push to GHCR
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ] 
+  # Versioned builds trigger off publishing a GitHub Release (not the tag push
+  # itself) so github.event.release.prerelease is available to gate the
+  # 'latest' tag below. Draft a release + check "Set as a pre-release" for
+  # betas; publishing without that box checked is what makes 'latest' move.
+  release:
+    types: [ "published" ]
 
 jobs:
   build:
@@ -40,6 +45,7 @@ jobs:
           tags: |
             type=edge,branch=main
             type=match,pattern=(v.*),group=1
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && github.event.release.prerelease == false }}
 
       - name: Build and push
         uses: docker/build-push-action@v6

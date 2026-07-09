@@ -3,6 +3,7 @@ const router = express.Router();
 const boseCloudRoutes = require('./bose_cloud');
 const fs = require('fs');
 const path = require('path');
+const mass = require('./mass'); 
 const LIBRARY_FILE = path.join(__dirname, '../config/library.json');
 const SILENT_MP3_B64 = "//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
 const SILENT_MP3_BUFFER = Buffer.from(SILENT_MP3_B64, 'base64');

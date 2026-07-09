@@ -17,7 +17,7 @@ window.dismissUpdateBanner = function(versionToDismiss) {
 // Function to ping the backend and check for updates
 async function checkForUpdates() {
     try {
-        const res = await fetch(`api/check_update?t=${Date.now()}`, { cache: 'no-store' });
+        const res = await fetch(`/api/check_update?t=${Date.now()}`, { cache: 'no-store' });
         const data = await res.json();
         
         if (data.updateAvailable) {
@@ -162,7 +162,7 @@ setInterval(async () => {
     try {
         // STEP 2: Ping the Health Endpoint
         // append a timestamp (?t=...) to prevent the browser from caching an old response.
-        const res = await fetch(`api/health?t=${Date.now()}`, { cache: 'no-store' });
+        const res = await fetch(`/api/health?t=${Date.now()}`, { cache: 'no-store' });
         const h = await res.json();
         const banner = document.getElementById('mass-error-banner');
         

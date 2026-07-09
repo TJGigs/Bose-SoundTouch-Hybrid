@@ -22,10 +22,10 @@
 	</div>
     
 	<div class="nav-center-group">
-        <div class="global-link active" onmousedown="window.location.href='control.html'">Remote Control</div>
-        <div class="global-link" onmousedown="window.location.href='manager.html'">Library Manager</div>
-        <div class="global-link" onmousedown="window.location.href='admin.html'">Speaker Admin</div>
-		<div class="global-link nav-hide-mobile" onmousedown="window.location.href='tools.html'">System Tools</div>
+        <div class="global-link active" onmousedown="window.location.href='/control.html'">Remote Control</div>
+        <div class="global-link" onmousedown="window.location.href='/manager.html'">Library Manager</div>
+        <div class="global-link" onmousedown="window.location.href='/admin.html'">Speaker Admin</div>
+		<div class="global-link nav-hide-mobile" onmousedown="window.location.href='/tools.html'">System Tools</div>
     </div>
 
     <div style="min-width:250px; display:flex; justify-content:flex-end;">
@@ -188,8 +188,7 @@
           prevDisabled: true,
           volDisabled: device.isStandby,
           joinDisabled: false,
-          presetDisabled: false,
-          resumePending: !!effectiveDevice.airplayResumePending
+          presetDisabled: false
       };
 
       // --- NATIVE STATE HANDLING ---
@@ -533,7 +532,6 @@
             <div class="meta"><span class="track">${ui.track}</span><span class="artist">${ui.artist}</span></div>
           </div>
           <div class="controls">
-            ${ui.resumePending ? `<div class="resume-badge">⏳ Resuming — AirPlay teardown in progress, up to 15s</div>` : ''}
             <button class="btn power ${ui.pwrClass}" ${clickPower}><i class="icon-power"></i></button>
             <button class="btn prev ${ui.prevClass}" ${dis(ui.prevDisabled)} ${clickPrev}>⏮</button>
             <button class="btn play ${ui.playClass}" ${dis(ui.playDisabled)} ${clickPlay}>⏯</button>
@@ -693,7 +691,7 @@
   function uiTogglePower(ip, isCurrentlyStandby) {
       const targetState = isCurrentlyStandby ? 'ON' : 'OFF';
       LockManager.set(ip, 'POWER', targetState);
-      sendCommand('api/key', {
+      sendCommand('/api/key', {
           ip,
           key: 'POWER'
       });
@@ -702,7 +700,7 @@
   // Handles Preset click. Sets optimistic lock to "Loading...".
   function uiPreset(ip, n) {
       LockManager.set(ip, 'PRESET', n);
-      sendCommand('api/key', {
+      sendCommand('/api/key', {
           ip,
           key: `PRESET_${n}`
       });
@@ -726,7 +724,7 @@
           }
       }
       LockManager.set(ip, 'TRANSPORT', key, expected);
-      sendCommand('api/key', {
+      sendCommand('/api/key', {
           ip,
           key
       });
@@ -749,7 +747,7 @@
           LockManager.set(slaveIp, 'JOIN', 'MASTER');
           const body = { slaveIp };
           if (candidates.length === 1) body.targetMasterIp = candidates[0].ip;
-          sendCommand('api/join', body);
+          sendCommand('/api/join', body);
           return;
       }
 
@@ -768,7 +766,7 @@
   function confirmGroupJoin(slaveIp, targetMasterIp) {
       document.getElementById('group-picker-modal').style.display = 'none';
       LockManager.set(slaveIp, 'JOIN', 'MASTER');
-      sendCommand('api/join', { slaveIp, targetMasterIp });
+      sendCommand('/api/join', { slaveIp, targetMasterIp });
   }
 
   // --- MAIN VOLUME LOGIC ---

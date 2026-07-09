@@ -1,7 +1,7 @@
 {
   "name": "Bose Hybrid",
   "short_name": "Bose",
-  "start_url": "control.html",
+  "start_url": "/control.html",
   "display": "standalone",
   "background_color": "#0d0d0d",
   "theme_color": "#0d0d0d",

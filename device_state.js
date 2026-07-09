@@ -949,7 +949,7 @@ async function processSettledState(ip) {
                 if (newMembers.length > 0) {
                     console.log(`\n[DeviceState] 👥 GROUP STATE: ${ip} group updated. Now hosting ${newMembers.length} Slave(s).`);
                 } else if (oldMembers.length > 0 && newMembers.length === 0) {
-                    console.log(`\n[DeviceState] ⛓️‍💥 GROUP STATE: ${ip} group disbanded. All Slaves removed.`);
+                    console.log(`\n[DeviceState] 💔 GROUP STATE: ${ip} group disbanded. All Slaves removed.`);
                 }
             }
         }
@@ -983,8 +983,7 @@ async function processSettledState(ip) {
         artPlaceholder,
         provider: finalProvider,
         duration: finalDuration,
-        position: finalPosition,
-        airplayResumePending: !!AIRPLAY_PENDING_RESUME[ip]
+        position: finalPosition
     };
 
     // =========================================================
@@ -1104,21 +1103,6 @@ function clearAirplayPauseIntent(ip) {
     delete AIRPLAY_PAUSE_INTENT[ip];
 }
 
-// True while a previous AirPlay pause is still tearing down (session not yet
-// confirmed as INVALID_SOURCE). Lets callers know a resume can't be sent
-// directly yet and must be queued via armAirplayPendingResume() instead.
-function isAirplayTearingDown(ip) {
-    return !!AIRPLAY_PAUSE_INTENT[ip];
-}
-
-// Queues a resume for the moment the in-flight AirPlay teardown completes.
-// Mirrors the physical-remote path (line ~546) so a second PLAY_PAUSE press
-// during teardown — from the UI this time — gets the same deferred handling
-// instead of re-evaluating stale playStatus and re-sending PAUSE.
-function armAirplayPendingResume(ip) {
-    AIRPLAY_PENDING_RESUME[ip] = true;
-}
-
 function setExpectation(target, type, value, extraContext = null) {
     // 1. Resolve Target to IP
     let ip = target;
@@ -1150,8 +1134,6 @@ module.exports = {
     clearSession,
     setAirplayPauseIntent,
     clearAirplayPauseIntent,
-    isAirplayTearingDown,
-    armAirplayPendingResume,
     setLateJoinCallback,
     clearAllResumeState,
     pruneExtendedPresetsFromMemory
