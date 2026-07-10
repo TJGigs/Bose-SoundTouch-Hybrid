@@ -42,6 +42,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/tjgigs/bose-soundtouch-hybrid-2026
+          # type=match below is one of the tag types metadata-action auto-tags
+          # 'latest' for on its own (flavor.latest defaults to 'auto'), completely
+          # independent of the gated type=raw latest line further down. Without
+          # this, every prerelease silently got 'latest' pushed anyway via that
+          # implicit path. See issue #132.
+          flavor: |
+            latest=false
           tags: |
             type=edge,branch=main
             type=match,pattern=(v.*),group=1
@@ -112,6 +119,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/tjgigs/${{ matrix.arch }}-addon-bose-soundtouch-hybrid-2026
+          # Same implicit-latest issue as the main app image's metadata step above
+          # (type=match auto-tags 'latest' unless disabled) — the add-on has no
+          # gated raw-latest line at all, and Supervisor pins to an exact version
+          # tag anyway, so latest is disabled outright rather than gated.
+          flavor: |
+            latest=false
           tags: |
             type=edge,branch=main
             type=match,pattern=(v.*),group=1
