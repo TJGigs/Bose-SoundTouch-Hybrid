@@ -1,5 +1,5 @@
 name: "Bose SoundTouch Hybrid"
-version: "v3.8.3"
+version: "v4.0.beta1"
 slug: "bose_soundtouch_hybrid"
 description: "Self-hosted replacement for Bose's discontinued SoundTouch Cloud service. Restores physical presets, multi-room grouping, and streaming via Music Assistant."
 url: "https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026"
