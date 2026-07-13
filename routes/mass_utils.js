@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const mass = require('./mass');
-const { powerOffAllSpeakers } = require('./utils');
+const { powerOffAllSpeakers, findPlayerForIp } = require('./utils');
 
 // Talks to the Home Assistant Supervisor's internal API (only reachable from inside
 // HA's own container network, at the special hostname "supervisor"). SUPERVISOR_TOKEN
@@ -71,9 +71,9 @@ async function discoverMusicAssistantAppSlug() {
 async function restartViaSupervisor() {
     const appSlug = await discoverMusicAssistantAppSlug();
     if (!appSlug) {
-        throw new Error('Music Assistant add-on was not found via Supervisor.');
+        throw new Error('Music Assistant was not found via Supervisor.');
     }
-    console.log(`[MASS Restart] Trying HA Supervisor restart for add-on "${appSlug}"...`);
+    console.log(`[MASS Restart] Trying HA Supervisor restart for "${appSlug}"...`);
     await supervisorRequest(`/addons/${appSlug}/restart`, 'POST');
     console.log(`[MASS Restart] ✓ HA Supervisor: MASS restart command accepted.`);
     return true;
@@ -130,13 +130,12 @@ async function restartMassContainer() {
 
     // --- Path 3: HA Supervisor API, public (MASS as HA add-on on a separate VM) ---
     if (haToken && massIp) {
-        const addonSlug = containerName.startsWith('addon_') ? containerName.slice(6) : containerName;
-        console.log(`[MASS Restart] Trying HA Supervisor API at ${massIp}:${haPort} (add-on: "${addonSlug}")...`);
+        console.log(`[MASS Restart] Trying HA Supervisor API at ${massIp}:${haPort} ("${containerName}")...`);
         try {
             await axios.post(
                 `http://${massIp}:${haPort}/api/services/hassio/addon_restart`,
-                { addon: addonSlug },
-                { headers: { 'Authorization': `Bearer ${haToken}`, 'Content-Type': 'application/json' }, timeout: 10000 }
+                { addon: containerName },
+                { headers: { 'Authorization': `Bearer ${haToken}`, 'Content-Type': 'application/json' }, timeout: 60000 }
             );
             console.log(`[MASS Restart] ✓ HA Supervisor: MASS restart command accepted.`);
             return true;
@@ -146,7 +145,7 @@ async function restartMassContainer() {
         }
     } else if (!haToken) {
         console.log(`[MASS Restart] ⚠️  HA_TOKEN not set — HA Supervisor path unavailable.`);
-        console.log(`[MASS Restart] ⚠️  For HA add-on / separate VM setups, add HA_TOKEN to config/.env.`);
+        console.log(`[MASS Restart] ⚠️  For HA / separate VM setups, add HA_TOKEN to config/.env.`);
     }
 
     // --- All paths exhausted ---
@@ -193,8 +192,7 @@ async function getMassHealth() {
 // Called by both enforcePlayerConfigs (boot, multi-speaker) and
 // enforcePlayerConfigsForSpeaker (late-join, single speaker).
 async function auditSpeakerConfig(baseUrl, reqConfig, massPlayers, speaker) {
-    const ipRegex = new RegExp(`\\b${speaker.ip.replace(/\./g, '\\.')}\\b`);
-    const player = massPlayers.find(p => ipRegex.test(JSON.stringify(p)));
+    const player = findPlayerForIp(massPlayers, speaker.ip);
     if (!player) {
         console.log(`[MASS Utils] ⚠️ ${speaker.name || speaker.ip}: No matching MASS player found. Skipping config audit.`);
         return;
@@ -286,12 +284,13 @@ async function enforcePlayerConfigs(speakers) {
         let allDiscovered = false;
 
         for (let attempt = 1; attempt <= 12; attempt++) {
-            const { data } = await axios.post(`${baseUrl}/api`, { command: "players/all", args: {} }, reqConfig).catch(() => ({ data: [] }));
+            const { data } = await axios.post(`${baseUrl}/api`, { command: "players/all", args: {} }, reqConfig).catch((e) => {
+                console.log(`[MASS Utils] ⚠️ players/all request failed (attempt ${attempt}): ${mass.describeMassAuthError(e)}`);
+                return { data: [] };
+            });
             massPlayers = data || [];
 
-            allDiscovered = speakers.every(speaker =>
-                massPlayers.some(p => new RegExp(`\\b${speaker.ip.replace(/\./g, '\\.')}\\b`).test(JSON.stringify(p)))
-            );
+            allDiscovered = speakers.every(speaker => !!findPlayerForIp(massPlayers, speaker.ip));
 
             if (allDiscovered) {
                 console.log(`[Boot] ✓ All configured speakers discovered by MA network scan.`);
@@ -434,5 +433,6 @@ module.exports = {
     restartMassContainer,
     getMassHealth,
     enforcePlayerConfigs,
-    enforcePlayerConfigsForSpeaker
+    enforcePlayerConfigsForSpeaker,
+    supervisorRequest
 };

@@ -1,8 +1,8 @@
 name: "Bose SoundTouch Hybrid"
-version: "v4.beta2"
+version: "v4"
 slug: "bose_soundtouch_hybrid"
-description: "Self-hosted replacement for Bose's discontinued SoundTouch Cloud service. Restores physical presets, multi-room grouping, and streaming via Music Assistant."
-url: "https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026"
+description: "An open-source private SoundTouch cloud streaming service and application replacing the deactivated Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch Speakers and Wireless Link. Physical Presets Included!"
+url: "https://github.com/TJGigs/Bose-SoundTouch-Hybrid"
 arch:
   - aarch64
   - amd64
@@ -12,16 +12,15 @@ arch:
 # {arch} is substituted by Supervisor with the host's arch (must match one of
 # the arch: entries above). Supervisor pulls the tag matching `version:` below,
 # so a version bump here only takes effect once CI has published that tag.
-image: "ghcr.io/tjgigs/{arch}-addon-bose-soundtouch-hybrid-2026"
+image: "ghcr.io/tjgigs/{arch}-addon-bose-soundtouch-hybrid"
 
 startup: application
 boot: auto
 init: false
 
-# Required so speakers on the LAN can reach APP_IP:3000 directly for the
-# LOCAL_INTERNET_RADIO preset backdoor. Without host networking this add-on
-# would only be reachable at Docker's internal bridge IP, which the presets
-# injected onto the speakers' NVRAM cannot resolve.
+# Required so speakers on the LAN can reach APP_IP:3000  Without host 
+# networking this add-on would only be reachable at Docker's internal
+# bridge IP, which the presets injected onto the speakers' NVRAM cannot resolve.
 host_network: true
 
 # Native Supervisor API access, needed for restartMassContainer()'s Path 1
@@ -54,17 +53,18 @@ map:
 # bose_port isn't exposed either — it's a SoundTouch hardware constant (8090)
 # that never changes outside a port-forwarding edge case; hardcoded in run.sh.
 options:
+  mass_username: ""
+  mass_password: ""
+  mass_token: ""
   app_ip: ""
   mass_ip: ""
   mass_port: 8095
-  mass_token: ""
-  mass_username: ""
-  mass_password: ""
 
 schema:
-  app_ip: "str?"
-  mass_ip: "str?"
-  mass_port: port
-  mass_token: "password?"
   mass_username: "str?"
   mass_password: "password?"
+  mass_token: "password?"  
+  app_ip: "str?"
+  mass_ip: "str?"
+  mass_port: port 
+

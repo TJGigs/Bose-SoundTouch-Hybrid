@@ -75,15 +75,19 @@ body.light-mode {
 /*    --console-text: #1a1a1a; /* custom dark grey/black JUST for the console */
 }
 
-body { 
-    background: var(--bg); 
-    color: var(--text); 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-    margin: 0; padding: 20px; 
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 20px;
     min-height: 100vh;
 }
 
-.container, .app-container { max-width: 1200px; margin: 0 auto; }
+a { color: var(--accent); }
+a:visited { color: var(--accent); }
+a:hover { opacity: 0.8; }
+
+.container { max-width: 1200px; margin: 0 auto; }
 
 /* =========================================
    2. SHARED LAYOUT & UTILITY CLASSES
@@ -140,10 +144,6 @@ body {
 }
 
 .btn-action.btn-blue { background: var(--accent-blue); }
-.btn-action.btn-orange { background: var(--accent-orange); }
-.btn-action.btn-purple { background: var(--accent-purple); }
-.btn-action.btn-teal { background: var(--accent-teal); }
-.btn-action.btn-danger { background: var(--danger); }
 
 .btn-action:hover {
     filter: brightness(1.05);
@@ -388,6 +388,7 @@ input[type=range]:active {
 .group-slider input[type=range] { accent-color: var(--group); }
 .group-label { font-size: 0.7em; color: var(--group); font-weight: bold; margin-bottom: 5px; text-transform: uppercase; margin-top: 10px; }
 .master-badge { background: rgba(155, 89, 182, 0.15); color: var(--group); padding: 8px; font-size: 0.8em; font-weight: bold; text-align: center; border-radius: 4px; grid-column: span 4; border: 1px solid rgba(155, 89, 182, 0.3); text-transform: uppercase; letter-spacing: 0.5px; }
+.resume-badge { background: rgba(241, 196, 15, 0.15); color: var(--pending); padding: 8px; font-size: 0.8em; font-weight: bold; text-align: center; border-radius: 4px; grid-column: span 4; border: 1px solid rgba(241, 196, 15, 0.3); letter-spacing: 0.3px; }
 
 h3 { margin: 0; color: var(--text); font-size: 1.1em; display: flex; align-items: center; gap: 8px; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
@@ -463,16 +464,11 @@ h3 { margin: 0; color: var(--text); font-size: 1.1em; display: flex; align-items
 .btn-sm:hover { border-color: var(--text); color: var(--text); }
 
 /* --- DESTRUCTIVE ACTION COLORS (Favorites/Presets) --- */
-.action-clear {
-    color: var(--pending) !important;
-}
-.action-clear:hover {
-    border-color: var(--pending) !important;
-    filter: brightness(1.2);
-}
-
 .action-delete {
-    color: var(--danger) !important;
+    color: #e74c3c !important;
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
 .action-delete:hover {
     border-color: var(--danger) !important;
@@ -597,7 +593,6 @@ h3 { margin: 0; color: var(--text); font-size: 1.1em; display: flex; align-items
 button.pwr-on, button.state-on { background: var(--accent); color: black; border: none; font-weight: bold; }
 button.pwr-off, button.state-off { background: var(--btn-bg); color: var(--btn-text); border: 1px solid var(--btn-border); }
 .tools-area { background: var(--panel-bg); padding: 12px; border-radius: 6px; border: 1px solid var(--panel-border); margin-top: auto; }
-.tools-title { font-size: 0.7em; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; display: block; }
 
 /* UPDATED: Uses Variables for Theme Support */
 #admin-grid textarea { 
@@ -648,18 +643,11 @@ button.pwr-off, button.state-off { background: var(--btn-bg); color: var(--btn-t
     .stream-grid { grid-template-columns: 1fr !important; gap: 10px; }
     .stream-controls { flex-direction: column; align-items: stretch; }
     .stream-controls button { width: 100%; margin-top: 5px; }
-    .nas-layout { flex-direction: column; }
-    .nas-active-card { display: flex; flex-direction: column; align-items: stretch; padding: 15px !important; text-align: center; min-width: 0 !important; width: 100% !important; }
-    .nas-item { display: flex !important; flex-direction: column !important; align-items: stretch !important; text-align: center; gap: 10px; padding: 15px; min-width: 0 !important; width: 100% !important; }
-    .nas-item-text, #nas-ip-display { text-align: center !important; margin-bottom: 0; word-break: break-all !important; overflow-wrap: break-word !important; white-space: normal !important; }
-    .nas-item button { width: auto !important; display: flex !important; justify-content: center !important; align-items: center !important; margin-top: 5px; }
-    .nas-active-card button { width: auto !important; margin-top: 15px; }
 }
 
 /* =========================================
    7. UTILITY OVERRIDES (Used in Admin/Manager)
    ========================================= */
-#nas-ip-display, 
 h2 > span,
 label[style*="color"] {
     color: var(--text-secondary) !important;
@@ -708,7 +696,7 @@ label[style*="color"] {
    ========================================= */
 
 /* 1. GREEN (Active/Playing) - Play Button & Active Preset */
-.btn-active, .active-locked { 
+.btn-active {
     background-color: rgba(46, 204, 113, 0.2) !important; 
     color: var(--accent) !important; 
     border-color: var(--accent) !important; 
@@ -1098,13 +1086,6 @@ input:disabled + label {
 
 
 
-.pref-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
 .prefs-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -1179,19 +1160,4 @@ input:disabled + label {
 .tz-badge {
     font-family: monospace;
     font-size: 0.9em;
-}
-/* Red Trash Can for Favorites */
-.action-delete {
-    color: #e74c3c !important; /* Red */
-    background: transparent;
-    border: none;
-    cursor: pointer;
-}
-
-/* Yellow/Orange X for Presets */
-.action-clear {
-    color: #f39c12 !important; /* Warning Orange */
-    background: transparent;
-    border: none;
-    cursor: pointer;
 }

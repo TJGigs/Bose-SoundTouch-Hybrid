@@ -26,6 +26,20 @@ npm-debug.log
 testscripts/
 Misc/
 misc/
+examples/
+.backups/
+.history/
+
+# --- CI/CD (not needed at runtime) ---
+.github/
+
+# --- Personal local-only compose file & dev scripts (Windows-only, not needed in image) ---
+local-bose-soundtouch-hybrid.yml
+Set-FileDates.ps1
+SetReleaseDates.bat
+
+# --- HA add-on store metadata (not used by the standalone image) ---
+repository.yaml
 
 # --- Documentation (not needed in runtime image) ---
 Docs/
@@ -38,8 +52,9 @@ claude.md
 CLAUDE.md
 .claude/
 
-# --- Old project versions ---
-Bose-SoundTouch-Hybrid-2026-V3/
+# --- Push staging clone (GitHub Desktop-tracked, refreshed from this dev
+# folder before each push) — not source, and would bloat a local test build ---
+Bose-SoundTouch-Hybrid-Push-Staging/
 
 # --- OS junk ---
 .DS_Store

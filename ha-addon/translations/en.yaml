@@ -1,39 +1,28 @@
-configuration:
-  app_ip:
-    name: "Hybrid App IP Address"
-    description: >-
-      The LAN IP address your speakers will use to reach this add-on for the
-      LOCAL_INTERNET_RADIO preset backdoor. Leave blank to auto-detect — since
-      this add-on runs with host networking, it can safely default to this
-      Home Assistant host's own address. Only set this manually if
-      auto-detection picks the wrong network interface.
-  mass_ip:
-    name: "Music Assistant IP Address"
-    description: >-
-      The IP address of the server running Music Assistant. Leave blank if
-      Music Assistant runs as an add-on on THIS SAME Home Assistant instance —
-      it will default to this host's address automatically. Set this only if
-      Music Assistant runs on a separate machine or VM.
-  mass_port:
-    name: "Music Assistant Port"
-    description: >-
-      The port Music Assistant's API listens on. Defaults to 8095 — change
-      this only if you customized the port inside Music Assistant itself.
-  mass_token:
-    name: "Music Assistant Auth Token"
-    description: >-
-      A pre-issued Music Assistant long-lived access token, generated from
-      Music Assistant's own Settings page. An alternative to Username/Password
-      below — use one method or the other, not both.
+configuration: 
   mass_username:
-    name: "Music Assistant Username"
+    name: "Music Assistant Username:"
     description: >-
-      An alternative to Auth Token above — use one method or the other, not
-      both. Your Music Assistant login username. Must be provided together
-      with Password, not on its own.
+      Your Music Assistant login username. Must be provided together with Password. 
   mass_password:
-    name: "Music Assistant Password"
+    name: "Music Assistant Password:"
     description: >-
-      An alternative to Auth Token above — use one method or the other, not
-      both. Your Music Assistant login password. Must be provided together
-      with Username, not on its own.
+      Your Music Assistant login password. Must be provided together with Username.
+  mass_token:
+    name: "Music Assistant Auth Token:"
+    description: >-
+     Alternative to Music Assistant login username/password. Use one method or the other, not both.
+     Auth Token is a pre-issued long-lived access token generated from Music Assistants's settings page.      
+  app_ip:
+    name: "Bose SoundTouch Hybrid IP Address:"
+    description: >-
+      LEAVE BLANK TO AUTO-DETECT. This is the local IP address of the server running Bose SoundTouch Hybrid..
+      Only set this manually if Home Assistant has multiple network interfaces and auto-detect picks one your speakers can't reach.
+  mass_ip:
+    name: "Music Assistant IP Address:"
+    description: >-
+      LEAVE BLANK TO AUTO-DETECT. This is the local IP address of the server running Music Assistant. 
+      Only set this manually if Music Assistant runs on a separate machine or VM.
+  mass_port:
+    name: "Music Assistant Port:"
+    description: >-
+      Defaults to 8095 — Only change if you overrode the Music Assistant port.

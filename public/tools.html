@@ -50,9 +50,9 @@
                 </div>
                 
                 <div class="nav-menu">
-                    <div class="nav-link" onclick="window.location.href='/control.html'" style="cursor:pointer;">Remote Control</div>
-                    <div class="nav-link" onclick="window.location.href='/manager.html'" style="cursor:pointer;">Library Manager</div>
-                    <div class="nav-link" onclick="window.location.href='/admin.html'" style="cursor:pointer;">Speaker Admin</div>
+                    <div class="nav-link" onclick="window.location.href='control.html'" style="cursor:pointer;">Remote Control</div>
+                    <div class="nav-link" onclick="window.location.href='manager.html'" style="cursor:pointer;">Library Manager</div>
+                    <div class="nav-link" onclick="window.location.href='admin.html'" style="cursor:pointer;">Speaker Admin</div>
                     <div class="nav-link active">System Tools</div>
                 </div>
             </div>
@@ -325,6 +325,34 @@
 
 
 			
+			<div class="card card-accent-danger" style="margin-bottom: 25px; height:auto;">
+				<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleLogWindow()">
+					<h3 style="margin:0;">🖥️ Live Server Logs</h3>
+					<span id="log-chevron" style="color: var(--text-secondary); font-size: 1.2em;">▼</span>
+				</div>
+				<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">Captures the last 1000 console events from the Node.js server.</div>
+
+				<div id="log-container" style="display: none; margin-top: 15px;">
+					<textarea id="live-log-viewer" class="console-preview" style="height: 300px;" readonly></textarea>
+
+					<div style="display: flex; gap: 15px; margin-top: 15px; align-items: center; flex-wrap: wrap;">
+						<button class="btn" onclick="fetchLogs()">🔄 Refresh</button>
+
+						<label style="font-size: 0.9em; color: var(--text); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+							<input type="checkbox" id="auto-refresh-toggle" onchange="toggleAutoRefresh()" style="width: auto;">
+							Auto-Update
+						</label>
+
+						<label style="font-size: 0.9em; color: var(--text); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+							<input type="checkbox" id="verbose-debug-toggle" onchange="toggleVerboseDebug()" style="width: auto;">
+							Verbose Debug
+						</label>
+
+						<button class="btn primary" style="background:#3498db; color:white; border:none; margin-left: auto;" onclick="downloadLogs()">💾 Download .txt</button>
+					</div>
+				</div>
+			</div>
+
 			<div id="speaker-config-card" class="card card-accent" style="margin-bottom: 25px; height:auto; display:none;">
 				<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleSpeakerConfigWindow()">
 					<h3 style="margin:0;">🔊 Speaker Configuration</h3>
@@ -338,6 +366,10 @@
 						<ul id="configured-speakers-list" style="list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
 							<li style="padding: 10px; background: var(--input-bg); color: var(--text-secondary); font-style: italic;">Loading...</li>
 						</ul>
+						<div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+							<div style="font-size: 0.82em; color: var(--text-secondary);">Use ▲▼ to reorder (this is also the display order everywhere else), ✕ to remove a speaker.</div>
+							<button class="btn-sm" style="white-space: nowrap;" onclick="saveSpeakerOrder(this)">💾 Save Order</button>
+						</div>
 					</div>
 
 					<button class="btn-action btn-blue" style="width: 100%;" onclick="scanForSpeakers(this)">🔍 Scan Network for Speakers</button>
@@ -345,35 +377,13 @@
 					<div id="discovery-results" style="display: none; margin-top: 15px;">
 						<div style="font-weight: bold; color: var(--text); margin-bottom: 8px; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.05em;">Scan Results</div>
 						<ul id="discovery-results-list" style="list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;"></ul>
-						<div style="margin-top: 8px; font-size: 0.82em; color: var(--text-secondary);">On restart, the app saves any speakers found to speakers.json. To remove a speaker, edit speakers.json directly and restart.</div>
+						<div style="margin-top: 8px; font-size: 0.82em; color: var(--text-secondary);">On restart, the app saves any newly found speakers to speakers.json automatically.</div>
 					</div>
-				</div>
-			</div>
 
-			<div class="card card-accent-danger" style="margin-bottom: 25px; height:auto;">
-				<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleLogWindow()">
-					<h3 style="margin:0;">🖥️ Live Server Logs</h3>
-					<span id="log-chevron" style="color: var(--text-secondary); font-size: 1.2em;">▼</span>
-				</div>
-				<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">Captures the last 1000 console events from the Node.js server.</div>
-				
-				<div id="log-container" style="display: none; margin-top: 15px;">
-					<textarea id="live-log-viewer" class="console-preview" style="height: 300px;" readonly></textarea>
-					
-					<div style="display: flex; gap: 15px; margin-top: 15px; align-items: center; flex-wrap: wrap;">
-						<button class="btn" onclick="fetchLogs()">🔄 Refresh</button>
-						
-						<label style="font-size: 0.9em; color: var(--text); display: flex; align-items: center; gap: 6px; cursor: pointer;">
-							<input type="checkbox" id="auto-refresh-toggle" onchange="toggleAutoRefresh()" style="width: auto;"> 
-							Auto-Update
-						</label>
-						
-						<label style="font-size: 0.9em; color: var(--text); display: flex; align-items: center; gap: 6px; cursor: pointer;">
-							<input type="checkbox" id="verbose-debug-toggle" onchange="toggleVerboseDebug()" style="width: auto;"> 
-							Verbose Debug
-						</label>
-						
-						<button class="btn primary" style="background:#3498db; color:white; border:none; margin-left: auto;" onclick="downloadLogs()">💾 Download .txt</button>
+					<div id="blacklist-results" style="display: none; margin-top: 15px;">
+						<div style="font-weight: bold; color: var(--text); margin-bottom: 8px; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.05em;">Blacklisted Speakers</div>
+						<ul id="blacklist-list" style="list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;"></ul>
+						<div style="margin-top: 8px; font-size: 0.82em; color: var(--text-secondary);">These won't be re-added by Scan Network or on restart, even if found on the network.</div>
 					</div>
 				</div>
 			</div>
@@ -450,11 +460,10 @@
 			</div>
 			<div class="step-box">
 				<div class="step-text">
-					<a href="#" onclick="openDoc('docs/SoundTouchHybridDocumentation.pdf'); return false;" style="display:block; margin-bottom:15px; font-size:1.1em;">📄 Bose SoundTouch Hybrid Documentation</a>
-					<a href="https://www.youtube.com/watch?v=R6mbTRBEBYA" target="_blank" style="display:block; margin-bottom:15px; font-size:1.1em;">📺 Bose SoundTouch Hybrid 2026 Demo Video</a>
-					<a href="https://www.youtube.com/watch?v=3BhAkpsZjBI" target="_blank" style="display:block; margin-bottom:15px; font-size:1.1em;">📺 Bose SoundTouch Hybrid 2026 V2 Enhancements Demo Video</a>
-					<a href="https://www.youtube.com/watch?v=ERsoMmyOpEU" target="_blank" style="display:block; margin-bottom:15px; font-size:1.1em;">📺 Bose SoundTouch Hybrid 2026 V3 Enhancements Demo Video</a>
-					<a href="https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026" target="_blank" style="display:block; margin-bottom:15px; font-size:1.1em;">💻 Official GitHub Repository (Source Code)</a>
+					<a href="https://github.com/TJGigs/Bose-SoundTouch-Hybrid/blob/main/README.md" target="_blank" style="display:block; margin-bottom:15px; font-size:1.1em;">📖 GitHub README</a>
+					<a href="https://github.com/TJGigs/Bose-SoundTouch-Hybrid/blob/main/public/docs/SoundTouchHybridDocumentation.md" target="_blank" style="display:block; margin-bottom:15px; font-size:1.1em;">📄 GitHub Technical Documentation</a>
+					<a href="https://github.com/TJGigs/Bose-SoundTouch-Hybrid" target="_blank" style="display:block; margin-bottom:15px; font-size:1.1em;">💻 Official GitHub Repository</a>
+					<a href="https://www.youtube.com/playlist?list=PLS5KFF3Xd1vmpmRJuNjAk_L_JJNcCjsnr" target="_blank" style="display:block; margin-bottom:15px; font-size:1.1em;">📺 Bose SoundTouch Hybrid Demo Videos</a>
 				</div>
 			</div>
 		</div>
@@ -478,6 +487,24 @@
 		</div>
 	</div>
 	
+	<div id="delete-speaker-modal" class="modal">
+		<div class="modal-content" style="width: 420px;">
+			<div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+				<h3 style="margin:0;">Delete Speaker</h3>
+				<button onclick="closeDeleteSpeakerModal()" style="border:none; background:none; font-size:1.5em; color:var(--text); opacity:0.6; cursor:pointer;">&times;</button>
+			</div>
+			<div id="delete-speaker-text" style="color:var(--text); margin-bottom:18px; font-size:0.95em; line-height:1.5;"></div>
+			<label style="display:flex; align-items:center; gap:8px; margin-bottom:20px; font-size:0.9em; color:var(--text); cursor:pointer;">
+				<input type="checkbox" id="delete-speaker-blacklist-checkbox">
+				Also blacklist this speaker so it isn't rediscovered
+			</label>
+			<div style="display:flex; justify-content:flex-end; gap:10px;">
+				<button class="btn-sm" onclick="closeDeleteSpeakerModal()">Cancel</button>
+				<button class="btn-action" style="background:#e74c3c; color:white; padding:8px 16px;" onclick="confirmDeleteSpeaker()">Delete</button>
+			</div>
+		</div>
+	</div>
+
 	<div id="h-modal" class="modal">
 		<div class="modal-content">
 			<div style="display:flex; justify-content:space-between; margin-bottom:20px;">
@@ -544,7 +571,6 @@
 	</div>
 	
 	<script>
-		const SERVER_URL = window.location.protocol + "//" + window.location.host;
 		(async function initRestrictedAccess() {
 		    try {
 		        const res = await fetch('api/admin/settings');
@@ -553,7 +579,7 @@
 		        if (!s.restrictedMode || !s.adminPin) return;
 		        let token = localStorage.getItem('adminSessionToken');
 		        if (token) {
-		            const chk = await fetch(`/api/admin/check-session?token=${encodeURIComponent(token)}`);
+		            const chk = await fetch(`api/admin/check-session?token=${encodeURIComponent(token)}`);
 		            if ((await chk.json()).valid) return;
 		        }
 		        document.getElementById('pin-overlay').style.display = 'flex';
@@ -656,10 +682,10 @@
 		// Known local icons — these always win over MASS-provided icons
 		const KNOWN_LOCAL_ICONS = {
 		    'global':           null,
-		    'spotify':          '/images/spotify_icon.png',
-		    'tunein':           '/images/TuneIn_icon.png',
-		    'filesystem_local': '/images/nas_icon.png',
-		    'file':             '/images/nas_icon.png'
+		    'spotify':          'images/spotify_icon.png',
+		    'tunein':           'images/TuneIn_icon.png',
+		    'filesystem_local': 'images/nas_icon.png',
+		    'file':             'images/nas_icon.png'
 		};
 
 		// Radio providers whose domain name doesn't contain the word "radio"
@@ -747,7 +773,7 @@
 		        const isHidden = !entry.enabled;
 		        const iconHtml = entry.key === 'global'
 		            ? `<span style="font-size:1.4em; line-height:1;">🌍</span>`
-		            : `<img src="${entry.icon || '/images/ma_icon.png'}" onerror="this.src='/images/ma_icon.png'" style="height:20px; width:auto; object-fit:contain;">`;
+		            : `<img src="${entry.icon || 'images/ma_icon.png'}" onerror="this.src='images/ma_icon.png'" style="height:20px; width:auto; object-fit:contain;">`;
 
 		        return `
 			<div style="display: flex; flex-direction: column; align-items: center; background: ${isHidden ? 'rgba(128,128,128,0.05)' : 'rgba(128,128,128,0.1)'}; padding: 10px 4px 8px; border-radius: 6px; border: 1px solid ${isHidden ? 'rgba(128,128,128,0.2)' : 'var(--border)'}; flex: 1; min-width: 70px; opacity: ${isHidden ? '0.45' : '1'}; position: relative;">
@@ -1306,8 +1332,6 @@ async function saveScheduledPlays(silent = false) {
 		        const statusRes = await fetch('api/status');
 		        const devices = await statusRes.json();
 
-		        configuredSpeakers = devices;
-
 		        const allOptions = devices.filter(d => d.online).map(d => `<option value="${d.ip}">${d.name} (${d.ip})</option>`).join('');
 		        const usbOption = `<option value="203.0.113.1">🔌 USB Cable / Initial Wi-Fi Setup (203.0.113.1)</option>`;
 
@@ -1331,24 +1355,21 @@ async function saveScheduledPlays(silent = false) {
 		        initScheduledPlays(devices);
 		        initPresetWatchdogUI(devices);
 
-		        // V4 speaker config card — hidden unless ENABLE_V4 is true on the server
+		        // V4 speaker config card
 		        try {
 		            const v4Res = await fetch('api/admin/v4-speakers');
 		            const v4Data = await v4Res.json();
-		            if (v4Data.enabled) {
-		                enableV4 = true;
-		                v4Speakers = v4Data.speakers;
-		                document.getElementById('speaker-config-card').style.display = '';
-		                const dtLabel = document.getElementById('lbl_doubleTapPresets');
-		                const dtChk   = document.getElementById('pref_doubleTapPresets');
-		                if (dtLabel) { dtLabel.style.opacity = ''; dtLabel.style.pointerEvents = ''; }
-		                if (dtChk)   dtChk.disabled = false;
+		            v4Speakers = v4Data.speakers;
+		            document.getElementById('speaker-config-card').style.display = '';
+		            const dtLabel = document.getElementById('lbl_doubleTapPresets');
+		            const dtChk   = document.getElementById('pref_doubleTapPresets');
+		            if (dtLabel) { dtLabel.style.opacity = ''; dtLabel.style.pointerEvents = ''; }
+		            if (dtChk)   dtChk.disabled = false;
 
-		                const ppLabel = document.getElementById('lbl_presetPreview');
-		                const ppChk   = document.getElementById('pref_presetPreview');
-		                if (ppLabel) { ppLabel.style.opacity = ''; ppLabel.style.pointerEvents = ''; }
-		                if (ppChk)   ppChk.disabled = false;
-		            }
+		            const ppLabel = document.getElementById('lbl_presetPreview');
+		            const ppChk   = document.getElementById('pref_presetPreview');
+		            if (ppLabel) { ppLabel.style.opacity = ''; ppLabel.style.pointerEvents = ''; }
+		            if (ppChk)   ppChk.disabled = false;
 		        } catch (e) { /* card stays hidden */ }
 
 		    } catch (e) {
@@ -1511,7 +1532,7 @@ async function saveScheduledPlays(silent = false) {
 		    btn.disabled = true;
 
 		    // --- NORMALIZED ENDPOINT ---
-		    const endpoint = '/api/admin/restart';
+		    const endpoint = 'api/admin/restart';
 		    const payload = {
 		        injectTarget: injectTarget,
 		        rebootTarget: rebootTarget
@@ -1724,8 +1745,6 @@ async function saveScheduledPlays(silent = false) {
 		// ==========================================
 		// SPEAKER CONFIGURATION UI
 		// ==========================================
-		let configuredSpeakers = [];
-		let enableV4 = false;
 		let v4Speakers = [];
 
 		async function toggleSpeakerConfigWindow() {
@@ -1734,14 +1753,13 @@ async function saveScheduledPlays(silent = false) {
 			if (container.style.display === 'none') {
 				container.style.display = 'block';
 				chevron.innerText = '▲';
-				if (enableV4) {
-					try {
-						const res = await fetch('api/admin/v4-speakers');
-						const data = await res.json();
-						if (data.enabled) v4Speakers = data.speakers;
-					} catch (e) { /* use cached */ }
-				}
+				try {
+					const res = await fetch('api/admin/v4-speakers');
+					const data = await res.json();
+					if (data.enabled) v4Speakers = data.speakers;
+				} catch (e) { /* use cached */ }
 				renderConfiguredSpeakers();
+				loadBlacklist();
 			} else {
 				container.style.display = 'none';
 				chevron.innerText = '▼';
@@ -1751,20 +1769,139 @@ async function saveScheduledPlays(silent = false) {
 		function renderConfiguredSpeakers() {
 			const list = document.getElementById('configured-speakers-list');
 			if (!list) return;
-			const speakers = enableV4 ? v4Speakers : configuredSpeakers;
+			const speakers = v4Speakers;
 			if (!speakers || speakers.length === 0) {
 				list.innerHTML = `<li style="padding:10px; background:var(--input-bg); color:var(--text-secondary); font-style:italic;">No speakers found. Run a Scan to search the network, or restart the container to trigger auto-discovery.</li>`;
 				return;
 			}
-			list.innerHTML = speakers.map(d => `
+			list.innerHTML = speakers.map((d, index) => `
 				<li style="display:flex; align-items:center; gap:10px; padding:10px; background:var(--input-bg); border-bottom:1px solid var(--border);">
-					<span style="font-size:0.9em;">${enableV4 ? '🔊' : (d.online ? '🟢' : '⚫')}</span>
+					<span style="font-size:0.9em;">🔊</span>
 					<span style="color:var(--text); font-weight:bold;">${d.name}</span>
 					<span style="color:var(--text-secondary); font-family:monospace; font-size:0.85em;">${d.ip}</span>
 					${d.deviceId ? `<span style="color:var(--text-secondary); font-family:monospace; font-size:0.75em; opacity:0.7;">${d.deviceId}</span>` : ''}
 					${d.type ? `<span style="margin-left:auto; font-size:0.8em; color:var(--text-secondary); white-space:nowrap;">${d.type}</span>` : ''}
+					<div style="display:flex; align-items:center; gap:4px; ${d.type ? '' : 'margin-left:auto;'}">
+						<button class="btn-sm" style="padding:2px 6px; font-size:0.8em;" onclick="moveSpeaker(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="Move up">▲</button>
+						<button class="btn-sm" style="padding:2px 6px; font-size:0.8em;" onclick="moveSpeaker(${index}, 1)" ${index === speakers.length - 1 ? 'disabled' : ''} title="Move down">▼</button>
+						<button onclick="deleteConfiguredSpeaker('${d.ip}')" title="Delete speaker" style="background:none; border:none; cursor:pointer; font-size:0.95em; color:var(--danger, #e74c3c); padding:0 4px; line-height:1;">✕</button>
+					</div>
 				</li>
 			`).join('');
+		}
+
+		function moveSpeaker(index, direction) {
+			const newIndex = index + direction;
+			if (newIndex < 0 || newIndex >= v4Speakers.length) return;
+			const temp = v4Speakers[index];
+			v4Speakers[index] = v4Speakers[newIndex];
+			v4Speakers[newIndex] = temp;
+			renderConfiguredSpeakers();
+		}
+
+		async function saveSpeakerOrder(btn) {
+			const orig = btn.innerText;
+			btn.disabled = true;
+			btn.innerText = 'Saving...';
+			try {
+				await fetch('api/admin/speakers-order', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ speakers: v4Speakers })
+				});
+				btn.innerText = '✅ Saved';
+			} catch (e) {
+				alert('❌ Failed to save speaker order: ' + e.message);
+				btn.innerText = orig;
+			} finally {
+				setTimeout(() => { btn.innerText = orig; btn.disabled = false; }, 1500);
+			}
+		}
+
+		let pendingDeleteIp = null;
+
+		function deleteConfiguredSpeaker(ip) {
+			const speaker = v4Speakers.find(s => s.ip === ip);
+			const name = speaker ? speaker.name : ip;
+
+			pendingDeleteIp = ip;
+			document.getElementById('delete-speaker-text').innerHTML =
+				`Delete "${name}" (${ip})?<br><br>This removes it from speakers.json, along with any preset assignments, scheduled plays, watchdog entry, and stereo pairing that reference it.<br><br>If this speaker is still online, it will be rediscovered and re-added on the next restart unless you blacklist it below.`;
+			document.getElementById('delete-speaker-blacklist-checkbox').checked = false;
+			document.getElementById('delete-speaker-modal').style.display = 'flex';
+		}
+
+		function closeDeleteSpeakerModal() {
+			pendingDeleteIp = null;
+			document.getElementById('delete-speaker-modal').style.display = 'none';
+		}
+
+		async function confirmDeleteSpeaker() {
+			const ip = pendingDeleteIp;
+			if (!ip) return;
+			const blacklist = document.getElementById('delete-speaker-blacklist-checkbox').checked;
+
+			try {
+				const res = await fetch(`api/admin/speakers/${ip}`, {
+					method: 'DELETE',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ blacklist })
+				});
+				if (!res.ok) {
+					const data = await res.json().catch(() => ({}));
+					throw new Error(data.error || `HTTP ${res.status}`);
+				}
+				v4Speakers = v4Speakers.filter(s => s.ip !== ip);
+				renderConfiguredSpeakers();
+				closeDeleteSpeakerModal();
+				if (blacklist) loadBlacklist();
+			} catch (e) {
+				alert('❌ Failed to delete speaker: ' + e.message);
+			}
+		}
+
+		async function loadBlacklist() {
+			const wrap = document.getElementById('blacklist-results');
+			const list = document.getElementById('blacklist-list');
+			if (!wrap || !list) return;
+			try {
+				const res = await fetch('api/admin/settings');
+				const settings = await res.json();
+				const blacklist = settings.speakerBlacklist || [];
+				if (blacklist.length === 0) {
+					wrap.style.display = 'none';
+					return;
+				}
+				wrap.style.display = 'block';
+				list.innerHTML = blacklist.map(b => `
+					<li style="display:flex; align-items:center; gap:10px; padding:10px; background:var(--input-bg); border-bottom:1px solid var(--border);">
+						<span>🚫</span>
+						<span style="color:var(--text); font-weight:bold;">${b.name || b.ip}</span>
+						<span style="color:var(--text-secondary); font-family:monospace; font-size:0.85em;">${b.ip}</span>
+						${b.deviceId ? `<span style="color:var(--text-secondary); font-family:monospace; font-size:0.75em; opacity:0.7;">${b.deviceId}</span>` : ''}
+						<button class="btn-sm" style="margin-left:auto; white-space:nowrap;" onclick="unblacklistSpeaker(${b.deviceId ? `'${b.deviceId}'` : 'null'}, '${b.ip}')">Remove from blacklist</button>
+					</li>
+				`).join('');
+			} catch (e) {
+				console.error('[UI] Failed to load speaker blacklist:', e);
+			}
+		}
+
+		async function unblacklistSpeaker(deviceId, ip) {
+			try {
+				const res = await fetch('api/admin/speakers/unblacklist', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ deviceId, ip })
+				});
+				if (!res.ok) {
+					const data = await res.json().catch(() => ({}));
+					throw new Error(data.error || `HTTP ${res.status}`);
+				}
+				loadBlacklist();
+			} catch (e) {
+				alert('❌ Failed to remove speaker from blacklist: ' + e.message);
+			}
 		}
 
 		async function scanForSpeakers(btn) {
@@ -1978,7 +2115,7 @@ async function saveScheduledPlays(silent = false) {
 
 		    try {
 		        // FIXED PATH: Added /admin
-		        await fetch(`/api/admin/stereo-pairs/${id}`, { method: 'DELETE' });
+		        await fetch(`api/admin/stereo-pairs/${id}`, { method: 'DELETE' });
 		        
 				// 🌟 AUTOMATED TARGETED REBOOTS (Ignores 10.0.0.9x Dummies)
 		        if (!leftIp.startsWith('10.0.0.9')) {

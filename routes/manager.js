@@ -65,6 +65,59 @@ const LIBRARY_FILE = path.join(__dirname, '../config/library.json');
 }
 // =======================================================================
 
+// =======================================================================
+// --- BOOT-TIME DEVICE ID RESYNC: Self-heal drifted speakerIp values ---
+// =======================================================================
+// Presets are matched by speakerIp (see getPresetAssignment in utils.js), which
+// goes stale if a speaker isn't on a static IP. Same pattern as
+// syncStereoPairsOnBoot in tools.js: backfill deviceId for entries that predate
+// it (using the current speakers.json — v4 auto-discovery keeps deviceId current
+// there), then correct speakerIp wherever a stored deviceId now resolves to a
+// different IP. Entries with no deviceId (assigned while the speaker wasn't
+// reachable) are left as-is — they self-correct next time that preset is saved
+// while the speaker's online.
+(function syncLibraryPresetsOnBoot() {
+    try {
+        const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
+        if (!fs.existsSync(LIBRARY_FILE) || !fs.existsSync(speakersPath)) return;
+
+        const speakers = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
+        const deviceIdToIp = {};
+        const ipToDeviceId = {};
+        for (const s of speakers) {
+            if (s.deviceId) {
+                deviceIdToIp[s.deviceId] = s.ip;
+                ipToDeviceId[s.ip] = s.deviceId;
+            }
+        }
+        if (Object.keys(deviceIdToIp).length === 0) return;
+
+        let lib = JSON.parse(fs.readFileSync(LIBRARY_FILE, 'utf8'));
+        let changed = false;
+
+        for (const item of lib) {
+            if (!(item.slot > 0) || !item.speakerIp) continue;
+
+            if (!item.deviceId) {
+                const knownId = ipToDeviceId[item.speakerIp];
+                if (knownId) {
+                    item.deviceId = knownId;
+                    changed = true;
+                }
+            } else if (deviceIdToIp[item.deviceId] && deviceIdToIp[item.deviceId] !== item.speakerIp) {
+                console.log(`[Manager] Preset "${item.name}" (slot ${item.slot}): speakerIp updated ${item.speakerIp} → ${deviceIdToIp[item.deviceId]}`);
+                item.speakerIp = deviceIdToIp[item.deviceId];
+                changed = true;
+            }
+        }
+
+        if (changed) fs.writeFileSync(LIBRARY_FILE, JSON.stringify(lib, null, 2));
+    } catch (e) {
+        console.error('[Manager] ⚠️ Library preset boot sync error:', e.message);
+    }
+})();
+// =======================================================================
+
 // --- HELPER: API WRAPPER ---
 // Centralizes communication with Music Assistant.
 // Handles authentication (Token fetching) and standardizes error responses.
@@ -649,7 +702,7 @@ router.get('/manager/library', (req, res) => {
         res.json([]);
 });
 
-router.post('/manager/save', (req, res) => {
+router.post('/manager/save', async (req, res) => {
     const { uuid, name, image, type, slot, settings, subtitle, speakerIp, provider } = req.body;
     // Strip provider instance IDs at save time so library.json never stores stale instance
     // references (e.g. spotify--UgwRanCa:// → spotify://). Prevents duplicates and broken
@@ -659,6 +712,12 @@ router.post('/manager/save', (req, res) => {
 
     const targetSlot = parseInt(slot) || 0;
     const targetIp = speakerIp || "";
+
+    // Best-effort deviceId capture so the boot-time sync (syncLibraryPresetsOnBoot,
+    // below) can correct this entry's speakerIp later if the speaker's IP ever
+    // drifts. Single attempt, no retry — if the speaker isn't reachable right now,
+    // this entry just won't be auto-correctable until it's saved again while online.
+    const deviceId = (targetSlot > 0 && targetIp) ? await utils.fetchSpeakerDeviceId(targetIp) : null;
 
     // ==============================================================
     // RULE 1 & 2: THE FAVORITES POOL SEPARATION & MULTI-ASSIGNMENT
@@ -700,14 +759,16 @@ router.post('/manager/save', (req, res) => {
             // Update the existing preset's pointers
             presetItem.slot = targetSlot;
             presetItem.speakerIp = targetIp;
+            if (deviceId) presetItem.deviceId = deviceId;
             presetItem.name = name;
             presetItem.settings = { shuffle: settings?.shuffle || false, repeat: settings?.repeat || 'off' };
         } else {
-            // We are saving a brand new preset assignment 
+            // We are saving a brand new preset assignment
             lib.push({
                 uuid: crypto.randomUUID().split('-')[0],
                 slot: targetSlot,
                 speakerIp: targetIp,
+                ...(deviceId && { deviceId }),
                 name, subtitle: subtitle || type, uri, image, type, provider: provider || 'unknown',
                 settings: { shuffle: settings?.shuffle || false, repeat: settings?.repeat || 'off' }
             });

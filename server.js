@@ -1,10 +1,10 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v3.8.3";
-const ENV_SCHEMA_VERSION = "v4.0";
-const SETTINGS_SCHEMA_VERSION = "v3.8";
-const minReq = [2, 9, 4]; //MASS VERSION
+const CURRENT_VERSION = "v4";
+const ENV_SCHEMA_VERSION = "v4";
+const SETTINGS_SCHEMA_VERSION = "v4";
+const minReq = [2, 9, 8]; //MASS VERSION
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 const express = require('express');
 const fs = require('fs');
@@ -45,16 +45,24 @@ try {
     console.error(`[Boot] ⚠️ Could not archive watchdog logs: ${e.message}`);
 }
 
-const MAX_LOG_LINES = 1000; 
+const MAX_LOG_LINES = 1000;
 const logBuffer = [];
 const originalLog = console.log;
 const originalError = console.error;
 
+// ANSI color codes for terminal/Docker log output (docker logs, docker compose logs,
+// etc. all render these). NOT rendered by the Tools page's live log viewer — that's a
+// plain <textarea>, so captureLog() strips these back out before buffering so users
+// there see clean text instead of literal escape-code gibberish.
+const ANSI_BRIGHT_GREEN = '\x1b[92m';
+const ANSI_RESET = '\x1b[0m';
+const ANSI_CODE_PATTERN = /\x1b\[[0-9;]*m/g;
+
 function captureLog(type, args) {
     const time = new Date().toLocaleTimeString([], { hour12: false });
-    const msg = Array.from(args).map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
+    const msg = Array.from(args).map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ').replace(ANSI_CODE_PATTERN, '');
     logBuffer.push(`[${time}] [${type}] ${msg}`);
-    if (logBuffer.length > MAX_LOG_LINES) logBuffer.shift(); 
+    if (logBuffer.length > MAX_LOG_LINES) logBuffer.shift();
 }
 
 console.log = function() {
@@ -72,10 +80,10 @@ console.log = function() {
 };
 console.error = function() { captureLog('ERROR', arguments); originalError.apply(console, arguments); };
 
-console.log("=======================================================================");
-console.log("====                STARTUP AND INITIALIZATION");
-console.log("====           BOSE SOUNDTOUCH HYBRID 2026: " + CURRENT_VERSION.toUpperCase());
-console.log("=======================================================================");
+console.log("============================================================================");
+console.log("====             STARTUP AND INITIALIZATION");
+console.log("====           BOSE SOUNDTOUCH HYBRID: " + CURRENT_VERSION.toUpperCase());
+console.log("============================================================================");
 
 // ============================================================================
 // PHASE 3: TEMPLATES & MIGRATION ENGINE
@@ -86,23 +94,16 @@ const libraryPath = path.join(USER_ROOT, 'library.json');
 
 // Point explicitly to the /templates subfolder!
 const envTemplatePath = path.join(APP_ROOT, 'templates', '.env.template');
-const speakersTemplatePath = path.join(APP_ROOT, 'templates', 'speakers.template.json');
 const libraryTemplatePath = path.join(APP_ROOT, 'templates', 'library.template.json');
 
 let isReady = true;
-let NEEDS_DISCOVERY = false;
-
-// V4 DEVFLAG Gate 
-const ENABLE_V4 = false;
-global.ENABLE_V4 = ENABLE_V4;
-const speakersV4Path = path.join(LOG_DIR, 'speakers_v4.json');
 
 // Handle .env and Migration
 if (fs.existsSync(envPath)) {
     const envContent = fs.readFileSync(envPath, 'utf8');
-    const firstLine = envContent.split('\n')[0].trim();
-    
-if (firstLine !== `# .env file format: ${ENV_SCHEMA_VERSION}`) {
+    const parsedEnv = require('dotenv').parse(envContent);
+
+    if (parsedEnv.ENV_SCHEMA_VERSION !== ENV_SCHEMA_VERSION) {
         console.log(`[Boot] Outdated .env format detected. Backing up to .env.bak...`);
         fs.renameSync(envPath, path.join(USER_ROOT, '.env.bak'));
         
@@ -129,16 +130,11 @@ if (firstLine !== `# .env file format: ${ENV_SCHEMA_VERSION}`) {
     isReady = false; 
 }
 
-// Ensure speakers.json exists
+// Ensure speakers.json exists — starts empty and gets populated by the parallel
+// discovery block in systemBoot(), which runs on every boot regardless.
 if (!fs.existsSync(speakersPath)) {
-    console.log(`[Boot] speakers.json not found. Copying template...`);
-    if (fs.existsSync(speakersTemplatePath)) {
-        fs.copyFileSync(speakersTemplatePath, speakersPath);
-        console.log(`[Boot] Fresh speakers.json created from template. Edit config/speakers.json and restart.`);
-    } else {
-        console.error(`[Boot] CRITICAL: speakers.template.json is missing from ${speakersTemplatePath}`);
-        isReady = false;
-    }
+    console.log(`[Boot] speakers.json not found. Creating empty file — auto-discovery will populate it.`);
+    fs.writeFileSync(speakersPath, '[]');
 } else {
     console.log(`[Boot] speakers.json already exists. Skipping generation.`);
 }
@@ -162,8 +158,8 @@ const settingsPath = path.join(USER_ROOT, 'settings.json');
 
 const DEFAULT_SEARCH_MENU_ORDER = [
     { key: 'global',           name: 'Global',       icon: null,                       enabled: true, sourceType: 'global' },
-    { key: 'tunein',           name: 'TuneIn Radio', icon: '/images/TuneIn_icon.png',  enabled: true, sourceType: 'radio'  },
-    { key: 'filesystem_local', name: 'Local NAS',    icon: '/images/nas_icon.png',     enabled: true, sourceType: 'music'  }
+    { key: 'tunein',           name: 'TuneIn Radio', icon: 'images/TuneIn_icon.png',  enabled: true, sourceType: 'radio'  },
+    { key: 'filesystem_local', name: 'Local NAS',    icon: 'images/nas_icon.png',     enabled: true, sourceType: 'music'  }
 ];
 
 const DEFAULT_SETTINGS = {
@@ -174,15 +170,16 @@ const DEFAULT_SETTINGS = {
     mobileAutoSortSpeakers: true,
     scheduledSpeakerAudit: false,
     scheduledAuditHour: 2,
-    scheduledRestart: false,
+    scheduledRestart: true,
     scheduledRestartHour: 3,
-    includeReboot: false,
+    includeReboot: true,
     doubleTapPresets: false,
-    presetPreview: false,
+    presetPreview: true,
     restrictedMode: false,
     adminPin: "",
     scheduledPlays: [],
     presetWatchdogSpeakers: [],
+    speakerBlacklist: [],
     searchMenuOrder: DEFAULT_SEARCH_MENU_ORDER
 };
 
@@ -232,20 +229,11 @@ if (isReady) {
         }
     }
 
-    // Check for placeholder data in speakers.json
+    // speakers.json just needs to be valid JSON — auto-discovery (systemBoot's
+    // parallel discovery block) populates it on every boot regardless of content.
     if (fs.existsSync(speakersPath)) {
         try {
-            const speakersData = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
-            const hasTemplateData = speakersData.some(s => s.ip === "999.999.9.9" || s.name.includes("TypeInSpeakerName"));
-            if (hasTemplateData) {
-                if (ENABLE_V4) {
-                    console.log(`[Boot] 🔍 [V4] speakers.json has template data — auto-discovery will run.`);
-                    NEEDS_DISCOVERY = true;
-                } else {
-                    console.log(`[!!] Validation Failed: speakers.json has placeholder data. Please edit config/speakers.json.`);
-                    isReady = false;
-                }
-            }
+            JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
         } catch (e) {
             console.log(`[!!] Validation Failed: speakers.json is invalid JSON.`);
             isReady = false;
@@ -259,14 +247,20 @@ if (isReady) {
 if (!isReady) {
     console.error('========================================================');
     console.error(' ACTION REQUIRED: Setup Incomplete');
-    console.error(' 1. Open the folder where your docker .yml file is located.');
-    console.error(' 2. Edit the config/.env and config/speakers.json files.');
-    console.error(' 3. Restart this container (docker compose restart).');
+    if (process.env.SUPERVISOR_TOKEN) {
+        console.error(` 1. Open this add-on's Configuration tab.`);
+        console.error(' 2. Fill in (or re-confirm) the required fields.');
+        console.error(' 3. Restart this add-on from the Info tab.');
+    } else {
+        console.error(' 1. Open the folder where your docker .yml file is located.');
+        console.error(' 2. Edit the config/.env file.');
+        console.error(' 3. Restart this container (docker compose restart).');
+    }
     console.error('========================================================');
-    console.error(' App is safely halted. Fix your config files to boot.');
-    
+    console.error(' App is safely halted. Fix your config to boot.');
+
     // This puts Docker to sleep instead of crashing it (No more infinite restart loops!)
-    setInterval(() => {}, 1000 * 60 * 60); 
+    setInterval(() => {}, 1000 * 60 * 60);
 } else {
 
 // ============================================================================
@@ -308,8 +302,12 @@ if (!isReady) {
     app.use('/api', require('./routes/tools').router);
     app.use('/api/admin', require('./routes/mass_utils').router);
 
-    app.use('/', require('./routes/bridge')); 
-    app.use('/', require('./routes/bose_cloud'));
+    // bose_cloud is NOT mounted separately here — bridge.js already mounts it
+    // internally (router.use('/', boseCloudRoutes) near the top of bridge.js),
+    // and require()'s module cache means that's the same router instance a
+    // second app.use('/', ...) here would just re-run redundantly on every
+    // request (double Content-Type/ETag stamping, double watchdog log entries).
+    app.use('/', require('./routes/bridge'));
 
     app.get('/api/logs', (req, res) => res.type('text/plain').send(logBuffer.join('\n')));
     app.get('/api/check_update', (req, res) => res.json(UPDATE_CACHED_DATA));
@@ -332,7 +330,7 @@ if (!isReady) {
     async function checkGitHubForUpdates() {
         try {
 
-		   const githubRes = await axios.get(`https://api.github.com/repos/TJGigs/Bose-SoundTouch-Hybrid-2026/releases/latest?t=${Date.now()}`, {
+		   const githubRes = await axios.get(`https://api.github.com/repos/TJGigs/Bose-SoundTouch-Hybrid/releases/latest?t=${Date.now()}`, {
                 headers: {
                     'User-Agent': 'Bose-Hybrid-App',
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -354,78 +352,70 @@ if (!isReady) {
 
     async function systemBoot() {
 
-        // --- [V4] AUTO-DISCOVERY (runs only when speakers.json had template placeholder data) ---
-        if (NEEDS_DISCOVERY) {
-            const { discoverSpeakers } = require('./routes/utils');
-            const massIp = process.env.MASS_IP;
-            const subnet = massIp.split('.').slice(0, 3).join('.');
-            console.log(`\n[Boot] 🔍 [V4] Auto-discovering Bose SoundTouch speakers on ${subnet}.0/24...`);
-            console.log(`[Boot] ⏳ This may take a few seconds...`);
-            const discovered = await discoverSpeakers(subnet);
-            if (discovered.length === 0) {
-                console.error('========================================================');
-                console.error(' [V4] AUTO-DISCOVERY FAILED: No Bose SoundTouch speakers found.');
-                console.error(' Please manually edit config/speakers.json with your');
-                console.error(' speaker IPs and names, then restart the container.');
-                console.error('========================================================');
-                setInterval(() => {}, 1000 * 60 * 60);
-                return;
-            }
-            fs.writeFileSync(speakersV4Path, JSON.stringify(discovered, null, 2));
-            console.log(`[Boot] ✅ [V4] Auto-discovered ${discovered.length} speaker(s) — speakers_v4.json written.`);
-            discovered.forEach(s => console.log(`   • ${s.name.padEnd(25)} ${s.ip}  [deviceId: ${s.deviceId || 'n/a'}]`));
-        }
-
-        // Load speakers fresh from file (picks up auto-discovery results if just written)
-        const SPEAKERS = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
-
-        // [V4] PARALLEL DISCOVERY BLOCK — runs before the main roll call when ENABLE_V4 is true.
-        // Scans the network, merges results into speakers_v4.json (preserving offline speakers),
-        // writes the file, then prints a V4 roll call. Invisible when ENABLE_V4 is false.
-        if (ENABLE_V4) {
+        // PARALLEL DISCOVERY BLOCK — runs before the main roll call every boot.
+        // Scans the network, merges results into speakers.json (preserving offline speakers,
+        // self-healing any name/type/deviceId drift on ones it does find), then writes the file.
+        {
             const { discoverSpeakers } = require('./routes/utils');
             const massIp = process.env.MASS_IP;
             const subnet = massIp ? massIp.split('.').slice(0, 3).join('.') : null;
             if (subnet) {
-                console.log(`\n[V4] 🔍 Running network discovery on ${subnet}.0/24...`);
+                console.log("\n============================================================================");
+                console.log(`[Boot]  🔍  Speaker Discovery Scan (subnet ${subnet}.0/24)...`);
+                console.log("============================================================================");
                 const discovered = await discoverSpeakers(subnet);
                 const discoveredIps = new Set(discovered.map(s => s.ip));
 
-                let v4Speakers = [];
-                if (fs.existsSync(speakersV4Path)) {
-                    try { v4Speakers = JSON.parse(fs.readFileSync(speakersV4Path, 'utf8')); } catch (e) { v4Speakers = []; }
-                }
+                let savedSpeakers = [];
+                try { savedSpeakers = JSON.parse(fs.readFileSync(speakersPath, 'utf8')); } catch (e) { savedSpeakers = []; }
+
+                let blacklist = [];
+                try { blacklist = JSON.parse(fs.readFileSync(settingsPath, 'utf8')).speakerBlacklist || []; } catch (e) { blacklist = []; }
 
                 for (const found of discovered) {
-                    const existing = v4Speakers.find(s => s.ip === found.ip);
+                    const existing = savedSpeakers.find(s => s.ip === found.ip);
                     if (existing) {
                         if (found.name) existing.name = found.name;
                         if (found.type) existing.type = found.type;
                         if (found.deviceId) existing.deviceId = found.deviceId;
+                    } else if (blacklist.some(b => (found.deviceId && b.deviceId === found.deviceId) || b.ip === found.ip)) {
+                        console.log(` [Scan] Skipped blacklisted speaker: ${found.name} (${found.ip})`);
                     } else {
-                        v4Speakers.push(found);
-                        console.log(`[V4] New speaker added: ${found.name} (${found.ip})`);
+                        savedSpeakers.push(found);
+                        console.log(` [Scan] New speaker added: ${found.name} (${found.ip})`);
                     }
                 }
 
-                fs.writeFileSync(speakersV4Path, JSON.stringify(v4Speakers, null, 2));
+                fs.writeFileSync(speakersPath, JSON.stringify(savedSpeakers, null, 2));
 
-                console.log(`\n[V4] speakers_v4.json updated — ${v4Speakers.length} speaker(s):`);
-                console.log("=========================================================================");
-                for (const s of v4Speakers) {
+                for (const s of savedSpeakers) {
                     if (discoveredIps.has(s.ip)) {
-                        console.log(` [OK] ${s.name.padEnd(20)} | Type: ${(s.type || 'Unknown').padEnd(15)} | IP: ${s.ip}`);
+                        console.log(` [Scan][OK] ${s.name.padEnd(20)} | Type: ${(s.type || 'Unknown').padEnd(15)} | IP: ${s.ip}`);
                     } else {
-                        console.log(` [!!] ${s.name.padEnd(20)} | IP: ${s.ip.padEnd(15)} | OFFLINE (Not seen this scan)`);
+                        console.log(` [Scan][!!] ${s.name.padEnd(20)} | IP: ${s.ip.padEnd(15)} | Not seen this scan (offline, or outside this subnet)`);
                     }
                 }
-                console.log("=========================================================================");
+                console.log("============================================================================");
+                if (savedSpeakers.length === 0) {
+                    console.log(`[Boot] ⚠️ speakers.json has 0 speaker(s) — no Bose SoundTouch devices found on ${subnet}.0/24. Will retry on next restart.`);
+                } else {
+                    console.log(`[Boot]  speakers.json now has ${savedSpeakers.length} speaker(s) total.`);
+                }
             }
         }
 
-        console.log("\n=======================================================================");
-        console.log(`[Boot]          🔍  Checking configured speakers...`);
-        console.log("\========================================================================");
+        // Load speakers fresh from file — picks up auto-discovery results and the
+        // parallel discovery merge above, so the roll call below always reflects
+        // this boot's latest data, not what was on disk before either ran.
+        const SPEAKERS = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
+
+        // This re-checks EVERY entry in speakers.json directly by its stored IP —
+        // deliberately independent of the subnet-limited scan above, since
+        // speakers.json can contain entries outside that subnet (manually added,
+        // or just never matched by a sweep) that only this direct check can see.
+        console.log("\n============================================================================");
+        console.log(`[Boot]  🔍  Verifying All Configured Speakers (speakers.json, direct check)...`);
+        console.log("============================================================================");
 
         const ALIVE_SPEAKERS = [];
         global.MISSED_AT_BOOT = new Set();
@@ -437,19 +427,19 @@ if (!isReady) {
                 const res = await axios.get(`http://${s.ip}:8090/info`, { timeout: 1500 });
                 const data = await parser.parseStringPromise(res.data);
                 const type = data.info.type || data.info.$.type || "Unknown";
-                console.log(` [OK] ${s.name.padEnd(20)} | Type: ${type.padEnd(15)} | IP: ${s.ip}`);
+                console.log(` [Status][OK] ${s.name.padEnd(20)} | Type: ${type.padEnd(15)} | IP: ${s.ip}`);
                 ALIVE_SPEAKERS.push(s);
             } catch (e) {
-                console.log(` [!!] ${s.name.padEnd(20)} | IP: ${s.ip.padEnd(15)} | OFFLINE (Skipping)`);
+                console.log(` [Status][!!] ${s.name.padEnd(20)} | IP: ${s.ip.padEnd(15)} | OFFLINE (Skipping)`);
                 global.MISSED_AT_BOOT.add(s.ip);
             }
         }
-        console.log("=========================================================================");
+        console.log("============================================================================");
 
 		// STEP 2: Force Injection Check & Pre-Flight Execution
-        console.log(`\n-----------------------------------------------------------------------`);
-        console.log(`[Boot] Handing over to Pre-Flight Speaker Configuration...`); 
-        console.log(`-------------------------------------------------------------------------`);       		
+        console.log(`\n----------------------------------------------------------------------------`);
+        console.log(`[Boot] Handing over to Pre-Flight Speaker Configuration...`);
+        console.log(`----------------------------------------------------------------------------`);
         
         let forceInjectTarget = null;
         let forceRebootTarget = null;
@@ -462,7 +452,7 @@ if (!isReady) {
                 forceRebootTarget = flagData.forceRebootTarget || null;
                 if (flagData.debugMode === true) {
                     global.DEBUG_MODE = true;
-                    console.log(`[Boot] ℹ️ Verbose Debug Mode RESTORED from Force flag.`);
+                    console.log(`[Boot] ⚠️ Verbose Debug Mode RESTORED from Force flag.`);
                 }
                 if (forceInjectTarget || forceRebootTarget) {
                     console.log(`[Boot] 🚨 FORCE SEQUENCE FLAG DETECTED!`);
@@ -482,9 +472,9 @@ if (!isReady) {
 
 // STEP 3: The Great Wait (Reboot Polling)
         if (preflightData.rebootedIps && preflightData.rebootedIps.length > 0) {
-            console.log(`\n=======================================================================`);
+            console.log(`\n============================================================================`);
             console.log(`⏳ SPEAKER REBOOT SEQUENCE INITIATED`);
-            console.log(`=========================================================================\n`);
+            console.log(`============================================================================\n`);
             console.log(`[Boot] Waiting for ${preflightData.rebootedIps.length} speaker(s) to finish rebooting...`);
             console.log(`[Boot] Bose SoundTouch speakers are historically very slow.`);
             console.log(`[Boot] Please wait ~90 seconds for shutdown and network reconnection.\n`);
@@ -525,8 +515,8 @@ if (!isReady) {
                         const info = data.info || {};
                         const currentMargeUrl = info.margeURL || info.margeServerUrl || "";
 
-                        if (!currentMargeUrl.includes(`${process.env.APP_IP}:${process.env.APP_PORT}`)) { 
-                            console.log(`\n=======================================================================`);
+                        if (!currentMargeUrl.includes(`${process.env.APP_IP}:${process.env.APP_PORT}`)) {
+                            console.log(`\n============================================================================`);
                             console.log(`🚨 LEGACY V1/V2 CONFIGURATION DETECTED ON ${ip}!`);
                             console.log(`   The speaker is refusing the V3 update because an old USB hack file`);
                             console.log(`   is overriding the internal memory.`);
@@ -539,29 +529,29 @@ if (!isReady) {
                             console.log(``);
                             console.log(`   The Telnet Janitor will detect the USB, safely wipe the file,`);
                             console.log(`   reboot the speaker, and complete the V3 upgrade automatically!`);
-                            console.log(`=======================================================================\n`);
+                            console.log(`============================================================================\n`);
                         }
                     } catch (err) {}
                 }
             }
-            console.log(`\n=======================================================================`);
+            console.log(`\n============================================================================`);
             console.log(`✅ ALL SPEAKER REBOOTS COMPLETE`);
-            console.log(`=======================================================================\n`);
+            console.log(`============================================================================\n`);
         }
 
         // STEP 4: Establish Territory (WebSockets)
         // All configured speakers get a WebSocket connection loop, including any that were
         // offline at boot. Speakers in global.MISSED_AT_BOOT will trigger late-join config
         // enforcement automatically on their first successful connection.
-        console.log(`\n-----------------------------------------------------------------------`);
+        console.log(`\n----------------------------------------------------------------------------`);
         console.log(`[Boot] Connecting Real-time WebSockets...`);
-        console.log(`-------------------------------------------------------------------------`);
+        console.log(`----------------------------------------------------------------------------`);
         SPEAKERS.forEach(s => deviceState.initDevice(s));
-        
+
 		// STEP 5: The Introduction (Restart MASS)
-        console.log(`\n-----------------------------------------------------------------------`);
+        console.log(`\n----------------------------------------------------------------------------`);
         console.log(`[Boot] Triggering Music Assistant restart for a clean network state...`);
-        console.log(`-----------------------------------------------------------------------\n`);
+        console.log(`----------------------------------------------------------------------------\n`);
         
         const dockerRestartSuccess = await restartMassContainer();
         if (dockerRestartSuccess) console.log(`\n[Boot] ⏳ Waiting for Music Assistant to come back online...`);
@@ -569,8 +559,10 @@ if (!isReady) {
         let massHealth = { isOnline: false, version: "Unknown" };
         let healthAttempts = 0;
         
-        // Loop every 2 seconds until the Health Check passes (Max 30 seconds)
-        while (!massHealth.isOnline && healthAttempts < 15) {
+        // Loop every 2 seconds until the Health Check passes (Max 180 seconds —
+        // doubled from the original 90s: MASS restarts noticeably slower when
+        // it's itself a HA Supervisor add-on vs. a standalone Docker container).
+        while (!massHealth.isOnline && healthAttempts < 90) {
             await new Promise(r => setTimeout(r, 2000)); 
             massHealth = await getMassHealth();
             if (!massHealth.isOnline) {
@@ -600,7 +592,7 @@ if (!isReady) {
             // Register the late-join callback so device_state.js can trigger config
             // enforcement for any speaker that was offline at boot and connects later.
             deviceState.setLateJoinCallback(enforcePlayerConfigsForSpeaker);
-            console.log(`-------------------------------------------------------------------------`);
+            console.log(`----------------------------------------------------------------------------`);
             console.log(`[Boot] Prefetching recently played items to warm MASS cache...`);
 
             // Fire-and-forget: warms MASS's recently-played index so the first Recents
@@ -628,11 +620,11 @@ if (!isReady) {
 		// 🌟 Cache globally so the frontend UI can fetch them instantly
         global.APP_VERSION = CURRENT_VERSION;
         global.MASS_VERSION = massHealth.version;
-        console.log("=========================================================================");
-        console.log(`====      BOSE SOUNDTOUCH HYBRID 2026:  ${CURRENT_VERSION.toUpperCase()}`);
-        console.log(`====                  MUSIC ASSISTANT:  v${massHealth.version}`);
-        console.log("=======================================================================\n");
-        console.log(`➡️  Web UI accessible at: http://${process.env.APP_IP}:${PORT}/control.html\n`);
+        console.log("============================================================================");
+        console.log(`====      BOSE SOUNDTOUCH HYBRID:  ${CURRENT_VERSION.toUpperCase()}`);
+        console.log(`====             MUSIC ASSISTANT:  v${massHealth.version}`);
+        console.log("============================================================================\n");
+        console.log(`${ANSI_BRIGHT_GREEN}➡️  Web UI accessible at: http://${process.env.APP_IP}:${PORT}/control.html${ANSI_RESET}\n`);
 		
 		// =======================================================================
         // STEP 9: NETWORK KEEP-ALIVE HEARTBEAT TEST AT 90 Min

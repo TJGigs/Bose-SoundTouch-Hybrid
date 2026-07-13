@@ -4,9 +4,7 @@ const router = express.Router();
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
-const xml2js = require('xml2js');
-const { executeSmartShutdown, runSpeakerAudit, pushPresetsToSpeaker, updateWatchdogGlobals } = require('./utils');
+const { executeSmartShutdown, runSpeakerAudit, pushPresetsToSpeaker, updateWatchdogGlobals, fetchSpeakerDeviceId } = require('./utils');
 const deviceState = require('../device_state');
 
 const SETTINGS_FILE = path.join(process.cwd(), 'config', 'settings.json');
@@ -30,11 +28,13 @@ function getSettings() {
         scheduledRestart: false,
         includeReboot: false,
         doubleTapPresets: false,
+        presetPreview: true,
         presetWatchdogSpeakers: [],
+        speakerBlacklist: [],
         searchMenuOrder: [
             { key: 'global',           name: 'Global',       icon: null,                       enabled: true, sourceType: 'global' },
-            { key: 'tunein',           name: 'TuneIn Radio', icon: '/images/TuneIn_icon.png',  enabled: true, sourceType: 'radio'  },
-            { key: 'filesystem_local', name: 'Local NAS',    icon: '/images/nas_icon.png',     enabled: true, sourceType: 'music'  }
+            { key: 'tunein',           name: 'TuneIn Radio', icon: 'images/TuneIn_icon.png',  enabled: true, sourceType: 'radio'  },
+            { key: 'filesystem_local', name: 'Local NAS',    icon: 'images/nas_icon.png',     enabled: true, sourceType: 'music'  }
         ]
     };
 }
@@ -189,19 +189,6 @@ const saveStereoPairs = (data) => {
         console.error(`[Tools] ❌ Error writing stereo pairs file:`, err.message);
     }
 };
-
-// Single-attempt deviceId fetch for pair creation enrichment. No retry — speakers must be
-// online to create a pair anyway. Returns null silently if the speaker doesn't respond.
-async function fetchSpeakerDeviceId(ip) {
-    try {
-        const res = await axios.get(`http://${ip}:8090/info`, { timeout: 3000 });
-        const parser = new xml2js.Parser({ explicitArray: false });
-        const data = await parser.parseStringPromise(res.data);
-        return data?.info?.$?.deviceID || data?.info?.deviceID || null;
-    } catch (e) {
-        return null;
-    }
-}
 
 // Boot-time stereo pair consistency check.
 // 1. Prunes pairs whose speaker IPs are no longer in speakers.json (speaker was deleted).
@@ -407,16 +394,136 @@ router.get('/admin/discover', async (req, res) => {
     }
 });
 
-// --- V4 SPEAKER CONFIG — returns speakers_v4.json content and enabled flag ---
+// --- SPEAKER CONFIG — returns speakers.json content ---
 router.get('/admin/v4-speakers', (req, res) => {
-    const enabled = global.ENABLE_V4 === true;
-    if (!enabled) return res.json({ enabled: false, speakers: [] });
-    const v4Path = path.join(process.cwd(), 'config', 'logs', 'speakers_v4.json');
+    const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
     try {
-        const speakers = fs.existsSync(v4Path) ? JSON.parse(fs.readFileSync(v4Path, 'utf8')) : [];
+        const speakers = fs.existsSync(speakersPath) ? JSON.parse(fs.readFileSync(speakersPath, 'utf8')) : [];
         res.json({ enabled: true, speakers });
     } catch (e) {
         res.json({ enabled: true, speakers: [] });
+    }
+});
+
+// --- SAVE SPEAKER ORDER — position only, no adds/removes here ---
+router.post('/admin/speakers-order', (req, res) => {
+    const { speakers } = req.body;
+    if (!Array.isArray(speakers)) return res.status(400).json({ error: 'speakers must be an array' });
+    try {
+        const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
+        fs.writeFileSync(speakersPath, JSON.stringify(speakers, null, 2));
+        console.log(`[Tools] 🔃 Saved new speaker display order (${speakers.length} speaker(s)).`);
+        res.json({ success: true });
+    } catch (e) {
+        console.error('[Tools] ❌ Error saving speaker order:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- DELETE A CONFIGURED SPEAKER ---
+// User-initiated only (the "x" on the Tools page speaker list) — a truly deleted
+// speaker should leave no trace anywhere else in config, so this cascades into
+// every other file that can reference a speaker by IP. If the speaker is still
+// reachable on the network, the next boot's discovery pass will re-add it to
+// speakers.json (by design — this deletes config, not the physical speaker).
+router.delete('/admin/speakers/:ip', (req, res) => {
+    const ip = req.params.ip;
+    const shouldBlacklist = req.body && req.body.blacklist === true;
+    try {
+        const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
+        if (!fs.existsSync(speakersPath)) return res.status(404).json({ error: 'speakers.json not found' });
+
+        let speakers = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
+        const deletedSpeaker = speakers.find(s => s.ip === ip);
+        if (!deletedSpeaker) {
+            return res.status(404).json({ error: `No speaker with IP ${ip} found` });
+        }
+        speakers = speakers.filter(s => s.ip !== ip);
+        fs.writeFileSync(speakersPath, JSON.stringify(speakers, null, 2));
+        console.log(`[Tools] 🗑️ Deleted speaker ${ip} from speakers.json`);
+
+        // Cascade: library.json preset assignments for this speaker
+        const libraryPath = path.join(process.cwd(), 'config', 'library.json');
+        if (fs.existsSync(libraryPath)) {
+            let lib = JSON.parse(fs.readFileSync(libraryPath, 'utf8'));
+            const before = lib.length;
+            lib = lib.filter(item => !(item.slot > 0 && item.speakerIp === ip));
+            if (lib.length !== before) {
+                fs.writeFileSync(libraryPath, JSON.stringify(lib, null, 2));
+                console.log(`[Tools] 🗑️ Removed ${before - lib.length} preset assignment(s) for ${ip} from library.json`);
+            }
+        }
+
+        // Cascade: settings.json — scheduled plays + preset watchdog list
+        const settings = getSettings();
+        let settingsChanged = false;
+
+        if (Array.isArray(settings.scheduledPlays)) {
+            const before = settings.scheduledPlays.length;
+            settings.scheduledPlays = settings.scheduledPlays.filter(p => p.speakerIp !== ip);
+            if (settings.scheduledPlays.length !== before) {
+                console.log(`[Tools] 🗑️ Removed ${before - settings.scheduledPlays.length} scheduled play(s) for ${ip}`);
+                settingsChanged = true;
+            }
+        }
+        if (Array.isArray(settings.presetWatchdogSpeakers) && settings.presetWatchdogSpeakers.includes(ip)) {
+            settings.presetWatchdogSpeakers = settings.presetWatchdogSpeakers.filter(wip => wip !== ip);
+            console.log(`[Tools] 🗑️ Removed ${ip} from preset watchdog list`);
+            settingsChanged = true;
+        }
+        if (shouldBlacklist) {
+            if (!Array.isArray(settings.speakerBlacklist)) settings.speakerBlacklist = [];
+            if (!settings.speakerBlacklist.some(b => (deletedSpeaker.deviceId && b.deviceId === deletedSpeaker.deviceId) || b.ip === deletedSpeaker.ip)) {
+                settings.speakerBlacklist.push({
+                    deviceId: deletedSpeaker.deviceId || null,
+                    name: deletedSpeaker.name,
+                    ip: deletedSpeaker.ip
+                });
+                console.log(`[Tools] 🚫 Blacklisted ${deletedSpeaker.name} (deviceId: ${deletedSpeaker.deviceId || 'n/a'}) — won't be rediscovered`);
+                settingsChanged = true;
+            }
+        }
+        if (settingsChanged) {
+            fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 4));
+            updateWatchdogGlobals();
+        }
+
+        // Cascade: stereo_pairs.json
+        let pairs = getStereoPairs();
+        const pairsBefore = pairs.length;
+        pairs = pairs.filter(p => p.leftIp !== ip && p.rightIp !== ip);
+        if (pairs.length !== pairsBefore) {
+            saveStereoPairs(pairs);
+            console.log(`[Tools] 🗑️ Removed stereo pair referencing ${ip}`);
+        }
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[Tools] ❌ Error deleting speaker ${ip}:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- REMOVE A SPEAKER FROM THE BLACKLIST ---
+// deviceId takes priority when present (stable across DHCP changes); falls back
+// to ip for entries saved before a deviceId could be resolved.
+router.post('/admin/speakers/unblacklist', (req, res) => {
+    const { deviceId, ip } = req.body || {};
+    if (!deviceId && !ip) return res.status(400).json({ error: 'deviceId or ip required' });
+    try {
+        const settings = getSettings();
+        if (!Array.isArray(settings.speakerBlacklist)) settings.speakerBlacklist = [];
+        const before = settings.speakerBlacklist.length;
+        settings.speakerBlacklist = settings.speakerBlacklist.filter(b => deviceId ? b.deviceId !== deviceId : b.ip !== ip);
+        if (settings.speakerBlacklist.length === before) {
+            return res.status(404).json({ error: 'Not found in blacklist' });
+        }
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 4));
+        console.log(`[Tools] ✅ Removed ${deviceId || ip} from speaker blacklist`);
+        res.json({ success: true });
+    } catch (e) {
+        console.error('[Tools] ❌ Error removing from blacklist:', e.message);
+        res.status(500).json({ error: e.message });
     }
 });
 

@@ -2,14 +2,23 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const xml2js = require('xml2js');
+const fs = require('fs');
+const path = require('path');
 const mass = require('./mass');
-const utils = require('./utils');
 const deviceState = require('../device_state');
 
 // --- CONFIGURATION ---
 const BOSE_HEADERS = { headers: { 'Content-Type': 'application/xml' } };
 const PRESS_DELAY = 450;
-const SPEAKERS = require('../config/speakers.json');
+
+// Fresh read every call, not require() — speakers.json changes at runtime (boot-time
+// auto-discovery, the Tools page reorder/delete UI), and require()'s module cache
+// would otherwise freeze this to whatever was on disk the moment this file was first
+// loaded, silently serving stale/template speaker data for the rest of the process.
+const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
+function getSpeakers() {
+    return JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
+}
 
 // SYNC_LOCKS: Prevents multiple "Join" operations from overlapping on the same device.
 const SYNC_LOCKS = new Set();
@@ -34,14 +43,28 @@ async function handleMassTransport(ip, key, currentState) {
     if (key === 'NEXT_TRACK') { await mass.next(ip); }
     else if (key === 'PREV_TRACK') { await mass.previous(ip); }
     else if (key === 'PLAY_PAUSE') {
-        
+
+        // =======================================================
+        // 🎯 AIRPLAY TEARDOWN GUARD: A prior UI pause on this speaker may
+        // still be tearing down (12-14s). currentState.playStatus is stale
+        // during that window, so isActuallyPlaying can't be trusted — it
+        // would re-send PAUSE on what the user means as a resume. Queue the
+        // resume instead, same as the physical-remote deferred-resume path.
+        // =======================================================
+        if (deviceState.isAirplayTearingDown(ip)) {
+            console.log(`[Control] AirPlay teardown in progress for ${ip}. Queuing resume for when it lands.`);
+            deviceState.setExpectation(ip, 'PLAY_STATUS', 'PLAYING');
+            deviceState.armAirplayPendingResume(ip);
+            return;
+        }
+
         // =======================================================
         // 🛡️ THE V2 SHIELD: Set the expectation BEFORE executing
         // =======================================================
         const targetState = isActuallyPlaying ? 'NOT_PLAYING' : 'PLAYING';
         console.log(`[Control] Setting STATE Lock for PLAY_PAUSE (Target: ${targetState})`);
         deviceState.setExpectation(ip, 'PLAY_STATUS', targetState);
-        
+
         if (isActuallyPlaying) {
             console.log(`[Control] Speaker is Playing. Sending explicit PAUSE.`);
             if (currentState.source === 'AIRPLAY') {
@@ -157,7 +180,7 @@ async function handlePresetSelection(ip, presetNum, currentState) {
 router.get('/status', async (req, res) => {
     try {
         // 1. Fetch the real-time WebSocket state for every speaker
-        let states = await Promise.all(SPEAKERS.map(s => deviceState.get(s)));
+        let states = await Promise.all(getSpeakers().map(s => deviceState.get(s)));
         
         // Clone the array so we don't accidentally mutate the backend cache
         states = JSON.parse(JSON.stringify(states));
@@ -225,7 +248,7 @@ router.post('/key', async(req, res) => {
     const requestIcon = key.startsWith('PRESET_') ? '🅿️ ' : (requestIcons[key] || '');
     console.log(`\n[Control] ${requestIcon}Request: ${key} -> ${ip}`);
 
-    const device = SPEAKERS.find(s => s.ip === ip);
+    const device = getSpeakers().find(s => s.ip === ip);
     const currentState = await deviceState.get(device) || {};
     const transportKeys = ['NEXT_TRACK', 'PREV_TRACK', 'PLAY_PAUSE', 'PAUSE', 'PLAY', 'STOP'];
 
@@ -315,29 +338,13 @@ router.post('/balance', async(req, res) => {
     }
 });
 
-router.post('/play_content', async(req, res) => {
-    const { ip, contentItem } = req.body;
-    mass.setPresetMemory(ip, 0);
-    deviceState.clearSession(ip);
-
-    let xml = `<ContentItem source="${contentItem.source}" type="${contentItem.type}" location="${contentItem.location}" sourceAccount="${contentItem.sourceAccount || ''}" isPresetable="${contentItem.isPresetable || 'true'}"><itemName>${contentItem.itemName}</itemName><containerArt>${contentItem.containerArt || ''}</containerArt></ContentItem>`;
-
-    const success = await sendBoseXml(ip, 'select', xml);
-    if (success) {
-        deviceState.setExpectation(ip, 'TRACK', null, '');
-        res.send({ success: true });
-    } else {
-        res.status(500).send({ error: "Selection failed" });
-    }
-});
-
 router.post('/join', async(req, res) => {
     const { slaveIp, targetMasterIp } = req.body;
     if (SYNC_LOCKS.has(slaveIp)) return res.send({ success: false, message: "Sync Busy" });
     SYNC_LOCKS.add(slaveIp);
 
     try {
-        const slaveDevice = SPEAKERS.find(s => s.ip === slaveIp);
+        const slaveDevice = getSpeakers().find(s => s.ip === slaveIp);
         const slaveState = await deviceState.get(slaveDevice);
         if (!slaveState || slaveState.isStandby) deviceState.clearSession(slaveIp);
     } catch (e) {}
@@ -354,10 +361,11 @@ router.post('/join', async(req, res) => {
 
     try {
         let masterIp = null, masterMac = null;
+        const speakers = getSpeakers();
 
         if (targetMasterIp) {
             // User explicitly chose a target from the picker — resolve directly
-            const targetDevice = SPEAKERS.find(s => s.ip === targetMasterIp);
+            const targetDevice = speakers.find(s => s.ip === targetMasterIp);
             if (targetDevice) {
                 const targetState = await deviceState.get(targetDevice);
                 if (targetState && !targetState.isStandby && targetState.mac) {
@@ -368,7 +376,7 @@ router.post('/join', async(req, res) => {
         } else {
             // Auto-pick: find the best eligible master (existing behavior)
             const candidates = [];
-            for (const d of SPEAKERS) {
+            for (const d of speakers) {
                 if (d.ip === slaveIp) continue;
                 try {
                     const state = await deviceState.get(d);
@@ -446,7 +454,7 @@ router.post('/join', async(req, res) => {
         // =================================================================================
         // Use addZoneSlave when the master already has members (documented Bose spec);
         // setZone for a new group. Both accept the same XML payload.
-        const masterDevice = SPEAKERS.find(s => s.ip === masterIp);
+        const masterDevice = getSpeakers().find(s => s.ip === masterIp);
         const masterState = masterDevice ? await deviceState.get(masterDevice) : null;
         const masterHasSlaves = masterState && masterState.zone && masterState.zone.member &&
             (Array.isArray(masterState.zone.member) ? masterState.zone.member.length > 0 : !!masterState.zone.member);
@@ -499,7 +507,7 @@ router.post('/zone_volume', async(req, res) => {
 });
 
 // =================================================================================
-// 🩺 HEALTH CHECK & AUTO-RECOVERY INTERCEPTOR
+// HEALTH CHECK & AUTO-RECOVERY INTERCEPTOR
 // If the UI asks for health and the system is down, check preferences BEFORE 
 // telling the UI. If auto-recover is on, aggressively fix it and fake a healthy response.
 // =================================================================================
@@ -532,7 +540,7 @@ router.get('/health', async (req, res) => {
             console.error(`[Auto-Recovery] ⚠️ Failed to read settings or execute recovery: ${e.message}`);
         }
     } 
-    // 2. If it's broken BUT   currently in the middle of fixing it
+    // 2. If it's broken BUT currently in the middle of fixing it
     else if (!isHealthy && isAutoRecovering) {
         isHealthy = true; // tell this to duplicate tabs so they don't pop up the red modal
     }

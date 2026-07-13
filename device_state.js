@@ -296,7 +296,7 @@ function handleWakeMemory(ip, isStandby, activePreset, finalPlayStatus, source) 
         const isGenuineStream = finalPlayStatus === 'PLAY_STATE' && source !== 'INVALID_SOURCE' && source !== 'Ready' && source;
 
         if (AUTO_RESUME_TIMERS[ip] && (activePreset > 0 || isGenuineStream || userIsLoadingSomething)) {
-            console.log(`[DeviceState] 🛑 Auto-Resume Cancelled: Speaker natively loaded a source or user action detected.`);
+            console.log(`[DeviceState] Auto-Resume Cancelled: Speaker natively loaded a source or user action detected.`);
             clearTimeout(AUTO_RESUME_TIMERS[ip]);
             AUTO_RESUME_TIMERS[ip] = null;
         }
@@ -321,12 +321,12 @@ function handleWakeMemory(ip, isStandby, activePreset, finalPlayStatus, source) 
             // Check if the user woke the speaker by pressing a physical preset button or app button.
             // If EXPECTATIONS has a PRESET lock, we absolutely know a command is already in flight!
             if (EXPECTATIONS[ip] && EXPECTATIONS[ip].type === 'PRESET') {
-                console.log(`[DeviceState] 🛑 Auto-Resume Bypassed: User woke speaker via Preset action.`);
+                console.log(`[DeviceState] Auto-Resume Bypassed: User woke speaker via Preset action.`);
                 return; 
             }
 
             const presetId = WAKE_MEMORY[ip];
-            console.log(`\n[DeviceState] 🌅 Auto-Resume Enabled: Waking up ${ip}. Resuming Preset ${presetId}...`);
+            console.log(`\n[DeviceState] Auto-Resume Enabled: Waking up ${ip}. Resuming Preset ${presetId}...`);
             
             // Clear any old pending timers
             if (AUTO_RESUME_TIMERS[ip]) clearTimeout(AUTO_RESUME_TIMERS[ip]);
@@ -336,7 +336,7 @@ function handleWakeMemory(ip, isStandby, activePreset, finalPlayStatus, source) 
                 
                 // Double check right before firing just to be safe
                 if (EXPECTATIONS[ip] && EXPECTATIONS[ip].type === 'PRESET') {
-                    console.log(`[DeviceState] 🛑 Auto-Resume Bypassed at Execution: User initiated action.`);
+                    console.log(`[DeviceState] Auto-Resume Bypassed at Execution: User initiated action.`);
                     return; 
                 }
 
@@ -619,7 +619,7 @@ async function initDevice(device) {
         ws.on('error', (err) => {
             if (err.message.includes('UTF-8')) {
                 if (!POISONED_DEVICES[device.ip]) {
-                    console.log(`[DeviceState] 🧽 Bad metadata from ${device.ip} broke the socket.`);
+                    console.log(`[DeviceState] ⚠️ Bad metadata from ${device.ip} broke the socket.`);
                     POISONED_DEVICES[device.ip] = true;
                 }
                 reconnectDelay = 5000; 
@@ -949,7 +949,7 @@ async function processSettledState(ip) {
                 if (newMembers.length > 0) {
                     console.log(`\n[DeviceState] 👥 GROUP STATE: ${ip} group updated. Now hosting ${newMembers.length} Slave(s).`);
                 } else if (oldMembers.length > 0 && newMembers.length === 0) {
-                    console.log(`\n[DeviceState] 💔 GROUP STATE: ${ip} group disbanded. All Slaves removed.`);
+                    console.log(`\n[DeviceState] ⛓️‍💥 GROUP STATE: ${ip} group disbanded. All Slaves removed.`);
                 }
             }
         }
@@ -983,7 +983,8 @@ async function processSettledState(ip) {
         artPlaceholder,
         provider: finalProvider,
         duration: finalDuration,
-        position: finalPosition
+        position: finalPosition,
+        airplayResumePending: !!AIRPLAY_PENDING_RESUME[ip]
     };
 
     // =========================================================
@@ -1103,6 +1104,21 @@ function clearAirplayPauseIntent(ip) {
     delete AIRPLAY_PAUSE_INTENT[ip];
 }
 
+// True while a previous AirPlay pause is still tearing down (session not yet
+// confirmed as INVALID_SOURCE). Lets callers know a resume can't be sent
+// directly yet and must be queued via armAirplayPendingResume() instead.
+function isAirplayTearingDown(ip) {
+    return !!AIRPLAY_PAUSE_INTENT[ip];
+}
+
+// Queues a resume for the moment the in-flight AirPlay teardown completes.
+// Mirrors the physical-remote path (line ~546) so a second PLAY_PAUSE press
+// during teardown — from the UI this time — gets the same deferred handling
+// instead of re-evaluating stale playStatus and re-sending PAUSE.
+function armAirplayPendingResume(ip) {
+    AIRPLAY_PENDING_RESUME[ip] = true;
+}
+
 function setExpectation(target, type, value, extraContext = null) {
     // 1. Resolve Target to IP
     let ip = target;
@@ -1134,6 +1150,8 @@ module.exports = {
     clearSession,
     setAirplayPauseIntent,
     clearAirplayPauseIntent,
+    isAirplayTearingDown,
+    armAirplayPendingResume,
     setLateJoinCallback,
     clearAllResumeState,
     pruneExtendedPresetsFromMemory

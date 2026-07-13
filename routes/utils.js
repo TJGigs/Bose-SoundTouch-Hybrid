@@ -19,10 +19,10 @@ function buildImageUrl(artPath, provider, uri) {
         return artPath;
     }
     if (artPath && provider) {
-        return `/api/manager/proxy_image?mode=raw&path=${encodeURIComponent(artPath)}&provider=${encodeURIComponent(provider)}`;
+        return `api/manager/proxy_image?mode=raw&path=${encodeURIComponent(artPath)}&provider=${encodeURIComponent(provider)}`;
     }
     if (uri) {
-        return `/api/manager/proxy_image?uri=${encodeURIComponent(uri)}`;
+        return `api/manager/proxy_image?uri=${encodeURIComponent(uri)}`;
     }
     return DEFAULT_ICON;
 }
@@ -48,6 +48,17 @@ function parseIp(input) {
     // 3. Extract pure IPv4 if garbage remains
     const match = str.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
     return match ? match[0] : str;
+}
+
+// --- SHARED MASS PLAYER MATCHER ---
+// Finds the MASS player object whose device_info.ip_address matches a given
+// speaker IP. This is the one thing mass.js's resolvePlayer and
+// mass_utils.js's config audit were each separately (and differently)
+// implementing — centralized here so there's exactly one place that knows
+// how to turn a speaker IP into a MASS player match.
+function findPlayerForIp(players, ip) {
+    if (!Array.isArray(players) || !ip) return null;
+    return players.find(p => parseIp(p.device_info?.ip_address) === ip) || null;
 }
 // --- SHARED PRESET LOOKUP ---
 function getPresetAssignment(ip, slotId) {
@@ -109,24 +120,9 @@ function isHybridContentItem(source, location) {
            location.includes(`${APP_IP}:${APP_PORT}/preset/`);
 }
 
-// --- PRESET HEALTH CHECKS ---
-// speakerHasPresets: slot existence only (used by legacy callers and as a base check)
-// speakerHasHybridPresets: stricter — confirms slots contain LOCAL_INTERNET_RADIO URLs
-// pointing back to this bridge. Both return true on fetch error to avoid false-positive reboots.
-async function speakerHasPresets(ip) {
-    try {
-        const res = await axios.get(`http://${ip}:8090/presets`, { timeout: 3000 });
-        const parser = new xml2js.Parser({ explicitArray: false });
-        const data = await parser.parseStringPromise(res.data);
-        const presets = data.presets && data.presets.preset;
-        if (!presets) return false;
-        if (Array.isArray(presets)) return presets.length > 0;
-        return Object.keys(presets).length > 0;
-    } catch (e) {
-        return true;
-    }
-}
-
+// --- PRESET HEALTH CHECK ---
+// speakerHasHybridPresets: confirms slots contain LOCAL_INTERNET_RADIO URLs pointing
+// back to this bridge. Returns true on fetch error to avoid false-positive reboots.
 async function speakerHasHybridPresets(ip) {
     const APP_IP = process.env.APP_IP;
     const APP_PORT = process.env.APP_PORT;
@@ -485,7 +481,25 @@ async function executeSmartShutdown(injectTarget = null, rebootTarget = null) {
         console.error(`[Admin] Could not power off speakers during shutdown:`, e.message);
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
+        // Under HA Supervisor, process.exit(0) alone just leaves the add-on
+        // Stopped — Supervisor only auto-restarts on a clean exit if Watchdog
+        // is enabled, which isn't the default. SUPERVISOR_TOKEN's presence
+        // means we're running as the actual HA add-on, so ask Supervisor to
+        // restart us via its own API first. Dynamic require to avoid a
+        // circular dependency (mass_utils.js already requires this file at
+        // its own top level) — same pattern executeSmartPreset() uses above.
+        if (process.env.SUPERVISOR_TOKEN) {
+            console.log(`[Admin] Running as HA add-on — requesting restart via Supervisor API...`);
+            try {
+                const { supervisorRequest } = require('./mass_utils');
+                await supervisorRequest('/addons/self/restart', 'POST');
+                console.log(`[Admin] ✓ Supervisor restart command accepted.`);
+            } catch (e) {
+                console.log(`[Admin] ⚠️ Supervisor restart request failed: ${e.message} — exiting process as a fallback.`);
+            }
+        }
+
         console.log(`[Admin] Exiting process to apply restart sequence...`);
         process.exit(0);
     }, 1000);
@@ -617,11 +631,26 @@ async function discoverSpeakers(subnet) {
         .map(r => r.value);
 }
 
+// Single-attempt deviceId fetch for enriching a stereo pair or library preset
+// at creation/save time. No retry — the speaker must be online right then anyway.
+// Returns null silently if it doesn't respond.
+async function fetchSpeakerDeviceId(ip) {
+    try {
+        const res = await axios.get(`http://${ip}:8090/info`, { timeout: 3000 });
+        const parser = new xml2js.Parser({ explicitArray: false });
+        const data = await parser.parseStringPromise(res.data);
+        return data?.info?.$?.deviceID || data?.info?.deviceID || null;
+    } catch (e) {
+        return null;
+    }
+}
+
 module.exports = {
     DEFAULT_ICON,
     buildImageUrl,
     getPresetAssignment,
     parseIp,
+    findPlayerForIp,
     scrubText,
 	startScheduler,
 	runSpeakerAudit,
@@ -629,14 +658,13 @@ module.exports = {
     powerOffAllSpeakers,
     executeSmartShutdown,
     scheduleProviderReload,
-    rebootSpeakerAndReload,
     isHybridContentItem,
-    speakerHasPresets,
     speakerHasHybridPresets,
     getHybridPresetDefinitions,
     pushPresetsToSpeaker,
     appendWatchdogLog,
     queryPresetsForSpeaker,
     updateWatchdogGlobals,
-    discoverSpeakers
+    discoverSpeakers,
+    fetchSpeakerDeviceId
 };

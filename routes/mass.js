@@ -4,13 +4,22 @@
 const axios = require('axios');
 const http = require('http'); 
 const { URL } = require('url');
-const utils = require('./utils'); 
 const MASS_IP = process.env.MASS_IP;
 const MASS_PORT = process.env.MASS_PORT;
 const MASS_USERNAME = process.env.MASS_USERNAME; 
 const MASS_PASSWORD = process.env.MASS_PASSWORD; 
 const BASE_URL = `http://${MASS_IP}:${MASS_PORT}/api`;
 const BOSE_PORT = process.env.BOSE_PORT || 8090;
+
+// Turns a bare 401 into an actionable message instead of a cryptic error string —
+// a stale/mismatched auth credential otherwise just looks like a generic network
+// failure with no hint about what actually went wrong or how to fix it.
+function describeMassAuthError(e) {
+    if (e.response?.status === 401) {
+        return `MASS rejected the current credentials (401 Unauthorized). Usually means MASS_TOKEN is stale — left over from a different MASS instance, or orphaned by a MASS reinstall resetting its user database. Clear MASS_TOKEN in .env to use MASS_USERNAME/MASS_PASSWORD instead, or generate a fresh token from MASS's own Settings page.`;
+    }
+    return e.message;
+}
 
 const PLAYER_ID_CACHE = {}; // Caches Player IDs, IPs, Names to reduce 'players/all' network calls.
 const PLAYER_IP_CACHE = {}; 
@@ -246,7 +255,7 @@ async function resolvePlayer(target, maxRetries = 8) {
                     }
                 }
             } catch (e) {
-                console.error(`[MASS] ⚠️ resolvePlayer API Error for ${target}: ${e.message}`);
+                console.error(`[MASS] ⚠️ resolvePlayer API Error for ${target}: ${describeMassAuthError(e)}`);
                 break; // Exit loop on hard network crashes
             }
         }
@@ -282,11 +291,6 @@ async function getRawMetadata(targetIp) {
         }
     } catch (e) { }
     return null;
-}
-
-// Wrapper for getRawMetadata to maintain API compatibility.
-async function getMetadata(targetIp) {
-    return await getRawMetadata(targetIp);
 }
 
 // Checks the playback state (playing, paused, idle) of a player.
@@ -390,11 +394,14 @@ async function resolveTargetPlayer(target) {
 let _cachedToken = null;
 let _tokenExpiry  = 0;
 
+// Username/password is tried first: it always resolves to whichever user
+// currently exists on the MASS instance. A static MASS_TOKEN is permanently
+// bound to the user_id it was issued for, so it silently breaks forever if
+// that user ever gets recreated (e.g. a MASS reinstall resetting the user
+// database) — username/password survives that, so it's the more resilient
+// default. MASS_TOKEN is kept only as a fallback for setups without
+// MASS_USERNAME/MASS_PASSWORD configured, or if login itself fails.
 async function getToken(forceRefresh = false) {
-    if (process.env.MASS_TOKEN) {
-        return process.env.MASS_TOKEN;
-    }
-
     if (!forceRefresh && _cachedToken && Date.now() < _tokenExpiry - 60_000) {
         return _cachedToken;
     }
@@ -402,26 +409,36 @@ async function getToken(forceRefresh = false) {
     const reason = forceRefresh ? 'token rejected by MASS (re-auth)' : 'no valid cached token';
     console.log(`[MASS] Authenticating with Music Assistant (${reason})...`);
 
-    try {
-        const res = await axios.post(`http://${MASS_IP}:${MASS_PORT}/auth/login`, {
-            credentials: { username: MASS_USERNAME, password: MASS_PASSWORD }
-        }, { timeout: 8000 });
+    if (MASS_USERNAME && MASS_PASSWORD) {
+        try {
+            const res = await axios.post(`http://${MASS_IP}:${MASS_PORT}/auth/login`, {
+                credentials: { username: MASS_USERNAME, password: MASS_PASSWORD }
+            }, { timeout: 8000 });
 
-        _cachedToken = res.data.token || res.data.access_token || res.data.sid || null;
-        _tokenExpiry  = Date.now() + 24 * 60 * 60 * 1000;
+            _cachedToken = res.data.token || res.data.access_token || res.data.sid || null;
+            _tokenExpiry  = Date.now() + 24 * 60 * 60 * 1000;
 
-        if (_cachedToken) {
-            console.log(`[MASS] ✓ Auth token ${forceRefresh ? 're-acquired' : 'acquired'} — cached for 24h.`);
-        } else {
+            if (_cachedToken) {
+                console.log(`[MASS] ✓ Auth token ${forceRefresh ? 're-acquired' : 'acquired'} via username/password — cached for 24h.`);
+                return _cachedToken;
+            }
             console.error(`[MASS] ❌ Auth request succeeded but response contained no token. Check MASS API format.`);
+        } catch (e) {
+            console.error(`[MASS] ⚠️ Username/password login failed: ${e.message}${process.env.MASS_TOKEN ? ' — falling back to MASS_TOKEN.' : ''}`);
         }
-        return _cachedToken;
-    } catch (e) {
-        _cachedToken = null;
-        _tokenExpiry  = 0;
-        console.error(`[MASS] ❌ Authentication failed: ${e.message}`);
-        return null;
     }
+
+    if (process.env.MASS_TOKEN) {
+        _cachedToken = process.env.MASS_TOKEN;
+        _tokenExpiry  = Date.now() + 24 * 60 * 60 * 1000;
+        console.log(`[MASS] ✓ Using MASS_TOKEN fallback — cached for 24h.`);
+        return _cachedToken;
+    }
+
+    _cachedToken = null;
+    _tokenExpiry  = 0;
+    console.error(`[MASS] ❌ Authentication failed: no working username/password or MASS_TOKEN available.`);
+    return null;
 }
 
 // Sends a physical key press simulation to the Bose speaker (e.g., POWER, PLAY).
@@ -692,7 +709,7 @@ async function forceRescan(aggressive = false, targetProvider = 'dlna') {
 
 // Pushes the speaker's current volume to MASS so that MASS's stored volume
 // stays in sync with what the user actually set (via remote, speaker buttons,
-// or STH2026 UI). Called on standby transition so MASS doesn't override the
+// or the Hybrid UI). Called on standby transition so MASS doesn't override the
 // user's volume on the next power-on when "Volume Control" is enabled in MA.
 async function syncVolumeToMass(ip, volumeLevel) {
     const { id } = await resolvePlayer(ip);
@@ -724,9 +741,8 @@ module.exports = {
     pause,
     clearQueue,
     getRawMetadata,
-    getMetadata,
     getToken,
-    BASE_URL,
+    describeMassAuthError,
     setPresetMemory,
     getPresetMemory,
     isRecovering,

@@ -4,11 +4,11 @@ Self-hosted replacement for Bose's discontinued SoundTouch Cloud service. Restor
 
 ---
 
-## Setting up Music Assistant (MASS)
+## <img src="public/images/ma_icon.png" width="18"> Setting up Music Assistant (MASS)
 
 ***You must verify your SoundTouch speakers and streaming providers are fully working inside of Music Assistant before installing SoundTouch Hybrid.***
 
-Install Music Assistant (MASS): ***version 2.9.5 or later is required***
+Install Music Assistant (MASS): ***version 2.9.8 or later is required***
 
 1. **For installation instructions and troubleshooting, use Music Assistant Help** — setup, providers, speaker testing, playback issues, etc.
    * See [MASS GitHub](https://github.com/music-assistant/server) and [MASS Website](https://www.music-assistant.io/installation)
@@ -35,7 +35,8 @@ Install Music Assistant (MASS): ***version 2.9.5 or later is required***
 
 ---
 
-## Common to All Install Methods
+
+## <img src="public/images/hybrid_icon.png" width="18"> Installing SoundTouch Hybrid
 
 * **Redirect to Local Cloud:** Happens automatically on first boot — no USB stick, no manual firmware step. Confirmed in the console/Pre-Flight log.
 * **Speaker Discovery:** Runs automatically on first boot and re-syncs on every subsequent boot — you never manually look up, enter, or edit a speaker list. Discovery scans the same subnet as your Music Assistant server, so your SoundTouch speakers need to be on that same subnet to be found.
@@ -46,24 +47,19 @@ Install Music Assistant (MASS): ***version 2.9.5 or later is required***
 **Before you install:** Music Assistant must already be installed and fully working — see "Setting up Music Assistant" above.
 
 1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add:
-   `https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026`
+   `https://github.com/TJGigs/Bose-SoundTouch-Hybrid`
 2. Find **Bose SoundTouch Hybrid** in the store and click **Install**.
 3. Open the **Configuration** tab before starting it:
-   * **App IP / Music Assistant IP** — leave both blank if Music Assistant runs on this same HA instance; the add-on auto-detects the host address. Only set **Music Assistant IP** if MASS runs elsewhere.
-   * **Music Assistant Auth Token** — generate one from MASS's own Settings page.
-   * **Music Assistant Username / Password** — an alternative to the token above. Both methods are fully supported; provide one or the other, not both.
+   * **Music Assistant Username / Password** Your MASS Username and Password. Both are required if not using a Music Assistant Auth Token.
+   * **Music Assistant Auth Token** An alternative to the Username / Password. Both methods are fully supported; provide one or the other, not both.
+   * **App IP / Music Assistant IP** — leave both blank, The add-on auto-detects the host address. Only set **Music Assistant IP** if MASS runs on a separate machine or VM.
 4. Start the add-on. On first boot it scans your network and finds your SoundTouch speakers automatically.
 5. Open the add-on's panel from the Home Assistant sidebar to use the web app. It's also reachable directly at `http://<your-HA-host-IP>:3000/control.html`.
 6. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:3000/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
 
 ---
 
-## Notes Specific to the Home Assistant Install
-
-- This add-on requires **host networking** (`host_network: true`) — this is what lets your physical speakers reach the add-on directly at your HA host's real LAN address for the preset backdoor. It requires full network access and cannot run with bridge or otherwise restricted networking.
-- This add-on can request Supervisor restart the Music Assistant add-on on your behalf if it detects MASS isn't running — this uses Home Assistant's own Supervisor API and needs no separate token from you.
-
 ## Getting Help
 
 Full technical documentation, architecture notes, and the standalone-Docker install path live in the main repository README:
-[github.com/TJGigs/Bose-SoundTouch-Hybrid-2026](https://github.com/TJGigs/Bose-SoundTouch-Hybrid-2026)
+[github.com/TJGigs/Bose-SoundTouch-Hybrid](https://github.com/TJGigs/Bose-SoundTouch-Hybrid)

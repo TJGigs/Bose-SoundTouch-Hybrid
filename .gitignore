@@ -5,12 +5,29 @@ node_modules/
 .env
 claude.md
 
+# --- Runtime config (live .env, tokens, speakers.json, library.json, etc.
+# generated on first boot / at runtime — never source, never commit) ---
+config/
+
+# --- Personal local-only files (your NAS paths, not the published templates) ---
+local-bose-soundtouch-hybrid.yml
+
 # --- Junk & Backups ---
 testscripts/
 .DS_Store
 Thumbs.db
-misc/
-Docs/
+/Misc/
+/Docs/
+.backups/
+
+# --- Editor/tool local history (VS Code Local History extension, etc.) ---
+.history/
+
+# --- Push staging clone (GitHub Desktop-tracked, refreshed by wiping everything
+# except .git and copying fresh from this dev folder before each push) — must
+# never be treated as regular source content or get its .git nested into
+# anything here ---
+Bose-SoundTouch-Hybrid-Push-Staging/
 
 # --- Logs ---
 logs/

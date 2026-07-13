@@ -12,10 +12,6 @@ const PORT = process.env.APP_PORT;
 const LOG_DIR = path.resolve(process.cwd(), "config", "logs");
 const identityCache = {};
 
-// ⚠️ TEST FLAG — SET TO true TO DELIVER EMPTY PRESETS DURING CLOUD HANDSHAKE.
-// SET BACK TO false BEFORE COMMITTING.
-const FORCE_EMPTY_PRESETS = false;
-
 // Use the global debug variable set by tools.html / admin.js
 const isDebug = () => global.DEBUG_MODE === true;
 
@@ -234,7 +230,6 @@ function generateSourceProviders(reqIp) {
 // a response it didn't understand, causing retries. Empty 200 OK matches real cloud behavior.
 
 function generatePresetsXml() {
-    if (FORCE_EMPTY_PRESETS) return '<presets/>';
     const time = getTimestamp();
     // Sourced from utils.getHybridPresetDefinitions() so this cloud-delivered XML and
     // the Preset Watchdog's direct WAPI storePreset write "Hybrid Preset N" the same
@@ -307,6 +302,15 @@ router.use((req, res, next) => {
     if (req.url.includes('/streaming') || req.url === '/') {
         res.set('Content-Type', 'application/vnd.bose.streaming-v1.2+xml');
     }
+    // Bose firmware sends conditional If-None-Match on marge/account requests and
+    // an empty/missing ETag can false-match an absent header — confirmed via
+    // soundcork (#86, #90, #129, #153) and gesellix/Bose-SoundTouch #177 ("Fix
+    // ETag for account-level endpoints"), whose fix computes a real content hash
+    // specifically to avoid returning "". This stamps a fresh non-empty value on
+    // every request instead — sidesteps that false-match bug, but isn't a true
+    // conditional ETag (nothing here reads incoming If-None-Match, so it never
+    // yields a real 304). Works today; a content-hash-based ETag + If-None-Match
+    // check would be the "correct" version if this ever needs revisiting.
     res.set('Etag', Date.now().toString());
 
     // Watchdog observe mode: log every cloud hit for monitored speakers.
@@ -333,7 +337,20 @@ router.use((req, res, next) => {
 
 const getIp = (req) => (req.ip || req.connection.remoteAddress || '').replace('::ffff:', '');
 
-router.get('/', (req, res) => {
+router.get('/', (req, res, next) => {
+    // Real Bose firmware hitting the marge root never sends a browser-style Accept
+    // header — this lets actual browsers (direct, or proxied through HA ingress,
+    // which always requests bare "/") fall through to server.js's control.html
+    // route instead of getting this device-facing XML stub.
+    if (req.headers.accept && req.headers.accept.includes('text/html')) {
+        // The router.use() above already stamped the XML content-type onto every
+        // request to '/' before this branch could run — clear it so sendFile()
+        // downstream (server.js) can set the correct text/html type itself.
+        // Without this, browsers get real HTML back labeled as an unknown XML
+        // MIME type and silently download it instead of rendering the page.
+        res.removeHeader('Content-Type');
+        return next();
+    }
     res.send('<?xml version="1.0" encoding="UTF-8" ?><marge><status>success</status></marge>');
 });
 
@@ -384,8 +401,6 @@ router.get('/bmx/registry/v1/services', (req, res) => {
 // 3. Source Providers (Internet Radio Local Bypass)
 router.get('/streaming/sourceproviders', (req, res) => {
     const reqIp = getIp(req);
-	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
-    //const reqIp = req.query.ip || getIp(req);
     notePreBmxStep(reqIp, 'sourceProviders');
     if (handshakeTracker[reqIp] && !handshakeTracker[reqIp].sourceProviders) {
         handshakeTracker[reqIp].sourceProviders = true;
@@ -398,8 +413,6 @@ router.get('/streaming/sourceproviders', (req, res) => {
 // 4. Full Account Profile (The Preset Injector)
 router.get('/streaming/account/:id/full', async (req, res) => {
     const reqIp = getIp(req);
-	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
-    //const reqIp = req.query.ip || getIp(req);
     const accountId = req.params.id;
     
     console.log(`[Bose Cloud] Account Profile requested by ${reqIp}. Fetching identity...`);
@@ -410,7 +423,7 @@ router.get('/streaming/account/:id/full', async (req, res) => {
         if (global.WATCHDOG_SPEAKERS?.includes(reqIp)) {
             utils.appendWatchdogLog(reqIp, { ts: new Date().toISOString(), type: 'account_profile_failed', reason: 'speaker identity unresolvable (port 8090 not ready)' });
         }
-        return res.status(503).send("Speaker Busy");
+        return res.status(503).type('text/plain').send("Speaker Busy");
     }
 
     notePreBmxStep(reqIp, 'presets');
@@ -423,15 +436,13 @@ router.get('/streaming/account/:id/full', async (req, res) => {
 
 router.get('/streaming/account/:id/device/:deviceId/presets', (req, res) => {
     const reqIp = getIp(req);
-	// TESTING ONLY: Allow browser to spoof the speaker's IP using ?ip=
-    //const reqIp = req.query.ip || getIp(req);
     console.log(`[Bose Cloud] Standby Preset Sync requested by ${reqIp}. Delivering Hybrid Presets...`);
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${generatePresetsXml()}`);
 });
 
 router.get('/streaming/account/:id/provider_settings', (req, res) => {
     const reqIp = getIp(req);
-    console.log(`[Bose Cloud] Provider Settings requested by ${reqIp}. Return 200 matching real Bose cloud UberBose/SoundCork Findings).`);
+    console.log(`[Bose Cloud] Provider Settings requested by ${reqIp}. Return 200 per BoseCloud UberBose/SoundCork).`);
     res.set('Content-Type', 'application/vnd.bose.streaming-v1.2+xml');
     res.status(200).send('');
 });
@@ -443,14 +454,21 @@ const stereoPairsFile = path.join(process.cwd(), 'config', 'stereo_pairs.json');
 
 router.get('/streaming/account/:id/device/:deviceId/group/', async (req, res) => {
     const reqIp = getIp(req);
-//	const reqIp = req.query.ip || getIp(req); //TESTING ONLY REMOVE BEFORE PROD
+    const reqDeviceId = req.params.deviceId;
 
     if (fs.existsSync(stereoPairsFile)) {
         const pairs = JSON.parse(fs.readFileSync(stereoPairsFile, 'utf8'));
-        const activePair = pairs.find(p => p.leftIp === reqIp || p.rightIp === reqIp);
+        // Match on deviceId first — the actual Bose protocol identifier for this call
+        // (confirmed against reference implementations julius-d/ueberboese-api and
+        // opencloudtouch, which key stereo pairs on deviceId alone, no IP at all).
+        // Falls back to IP for pairs that never got a deviceId stored — pair creation
+        // (/admin/stereo-pairs POST) only captures it if the speaker answered at the
+        // time, so an offline-at-creation pair can still be missing it.
+        const activePair = pairs.find(p => p.leftDeviceId === reqDeviceId || p.rightDeviceId === reqDeviceId)
+            || pairs.find(p => p.leftIp === reqIp || p.rightIp === reqIp);
 
         if (activePair) {
-            console.log(`[Bose Cloud] 👯 ST10 Stereo Sync requested by ${reqIp}. Compiling GroupService.xml for: ${activePair.name}`);
+            console.log(`[Bose Cloud] 👯 ST10 Stereo Sync requested by device ${reqDeviceId} (${reqIp}). Compiling GroupService.xml for: ${activePair.name}`);
 
             const leftIdentity = await getSpeakerIdentity(activePair.leftIp);
             const rightIdentity = await getSpeakerIdentity(activePair.rightIp);
@@ -498,7 +516,7 @@ router.delete('/streaming/account/:id/device/:deviceId', (req, res) => res.send(
 router.post(['/streaming/account/:id/device', '/streaming/account/:id/device/'], (req, res) => res.status(201).send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
 router.put('/streaming/account/:id/device/:deviceId', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" ?><status>success</status>'));
 router.get('/streaming/software/update/account/:id', (req, res) => res.send('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><software_update><softwareUpdateLocation></softwareUpdateLocation></software_update>'));
-router.get('/streaming/device/:id/streaming_token', (req, res) => res.status(404).send('Not Found'));
+router.get('/streaming/device/:id/streaming_token', (req, res) => res.status(404).type('text/plain').send('Not Found'));
 router.use('/radio', (req, res) => res.status(200).send("OK"));
 
 module.exports = router;
