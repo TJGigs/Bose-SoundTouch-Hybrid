@@ -150,13 +150,107 @@
 			</div>
 			</div>
 
+			<!-- 🕰️ Scheduled Play / Off Card -->
+			<div class="card card-accent-teal" style="margin-bottom: 25px; height:auto;">
+			<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="const el = document.getElementById('scheduledEventsCollapse'); el.style.display = el.style.display === 'none' ? 'block' : 'none';">
+				<h3 style="margin:0;">🕰️ Scheduled Play / Off</h3>
+				<span id="scheduledEventCount" style="background: var(--input-bg); padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid var(--border);">0 Schedules</span>
+			</div>
+			<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">Automatically play a preset or power off a speaker at a set time every day.</div>
+
+			<div id="scheduledEventsCollapse" style="display: none; margin-top: 15px;">
+				<ul id="scheduledEventsList" style="list-style: none; padding: 0; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+					<li id="scheduledEventsEmpty" style="padding: 10px; background: var(--input-bg); color: var(--text-secondary); font-style: italic;">No scheduled events configured.</li>
+				</ul>
+
+				<div style="display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;">
+					<div>
+						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">ACTION</label>
+						<select id="newEventAction" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;" onchange="updateNewEventActionUI()">
+							<option value="play">Play Preset</option>
+							<option value="off">Power Off</option>
+						</select>
+					</div>
+					<div style="flex-grow: 1; min-width: 150px;">
+						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">SPEAKER</label>
+						<select id="newEventSpeaker" style="width:100%; background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+							<option value="" disabled selected>Select speaker...</option>
+						</select>
+					</div>
+					<div id="newEventPresetWrap">
+						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">PRESET</label>
+						<select id="newEventPreset" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+							<option value="1">1</option>
+							<option value="2">2</option>
+							<option value="3">3</option>
+							<option value="4">4</option>
+							<option value="5">5</option>
+							<option value="6">6</option>
+						</select>
+					</div>
+					<div>
+						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">TIME</label>
+						<div style="display:flex; gap:5px; align-items:center;">
+							<select id="newEventHour" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+								<option value="" disabled selected>HH</option>
+							</select>
+							<select id="newEventMinute" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+								<option value="" disabled selected>MM</option>
+							</select>
+						</div>
+					</div>
+					<div>
+						<button id="addScheduledEventBtn" class="btn primary" style="white-space: nowrap; background: var(--accent-teal); border:none; padding: 8px 15px;" onclick="addScheduledEvent()">
+							➕ Add
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+			<!-- ⏲️ Power Off Timer Card -->
+			<div class="card card-accent-teal" style="margin-bottom: 25px; height:auto;">
+			<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="const el = document.getElementById('powerOffTimersCollapse'); el.style.display = el.style.display === 'none' ? 'block' : 'none';">
+				<h3 style="margin:0;">⏲️ Power Off Timer</h3>
+				<span id="powerOffTimerCount" style="background: var(--input-bg); padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid var(--border);">0 Timers</span>
+			</div>
+			<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">When enabled, a speaker automatically powers off a set number of minutes after it turns on.</div>
+
+			<div id="powerOffTimersCollapse" style="display: none; margin-top: 15px;">
+				<ul id="powerOffTimersList" style="list-style: none; padding: 0; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+					<li id="powerOffTimersEmpty" style="padding: 10px; background: var(--input-bg); color: var(--text-secondary); font-style: italic;">No power off timers configured.</li>
+				</ul>
+
+				<div style="display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;">
+					<div style="flex-grow: 1; min-width: 150px;">
+						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">SPEAKER</label>
+						<select id="newPowerOffTimerSpeaker" style="width:100%; background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+							<option value="" disabled selected>Select speaker...</option>
+						</select>
+					</div>
+					<div>
+						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">DURATION</label>
+						<select id="newPowerOffTimerDuration" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
+							<option value="30">30 min</option>
+							<option value="60" selected>60 min</option>
+							<option value="90">90 min</option>
+						</select>
+					</div>
+					<div>
+						<button id="addPowerOffTimerBtn" class="btn primary" style="white-space: nowrap; background: var(--accent-teal); border:none; padding: 8px 15px;" onclick="addPowerOffTimer()">
+							➕ Add
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
 			<div class="card card-accent-orange" style="margin-bottom: 25px; height:auto;">
 				<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="const el = document.getElementById('stereoPairingCollapse'); el.style.display = el.style.display === 'none' ? 'block' : 'none';">
 					<h3 style="margin:0;">🎧 ST10 Stereo Pairing</h3>
 					<span id="stereoPairCount" style="background: var(--input-bg); padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid var(--border);">0 Pairs</span>
 				</div>
 				<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">Bond two SoundTouch 10s into a persistent Left/Right stereo pair.</div>
-				
+
 				<div id="stereoPairingCollapse" style="display: none; margin-top: 15px;">
 					<h6 style="font-weight: bold; color: var(--text); margin-bottom: 10px;">Active Combinations</h6>
 					<ul id="activeStereoPairsList" style="list-style: none; padding: 0; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
@@ -191,57 +285,6 @@
 					</div>
 				</div>
 			</div>
-
-			<!-- ⏰ Scheduled Play Card -->
-			<div class="card card-accent-teal" style="margin-bottom: 25px; height:auto;">
-			<div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="const el = document.getElementById('scheduledPlaysCollapse'); el.style.display = el.style.display === 'none' ? 'block' : 'none';">
-				<h3 style="margin:0;">⏰ Scheduled Play</h3>
-				<span id="scheduledPlayCount" style="background: var(--input-bg); padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid var(--border);">0 Schedules</span>
-			</div>
-			<div class="sub-head" style="margin-top: 5px; margin-bottom: 0;">Automatically trigger a speaker preset at a set time every day.</div>
-
-			<div id="scheduledPlaysCollapse" style="display: none; margin-top: 15px;">
-				<ul id="scheduledPlaysList" style="list-style: none; padding: 0; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
-					<li id="scheduledPlaysEmpty" style="padding: 10px; background: var(--input-bg); color: var(--text-secondary); font-style: italic;">No scheduled plays configured.</li>
-				</ul>
-
-				<div style="display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;">
-					<div style="flex-grow: 1; min-width: 150px;">
-						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">SPEAKER</label>
-						<select id="newPlaySpeaker" style="width:100%; background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
-							<option value="" disabled selected>Select speaker...</option>
-						</select>
-					</div>
-					<div>
-						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">PRESET</label>
-						<select id="newPlayPreset" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
-							<option value="1">1</option>
-							<option value="2">2</option>
-							<option value="3">3</option>
-							<option value="4">4</option>
-							<option value="5">5</option>
-							<option value="6">6</option>
-						</select>
-					</div>
-					<div>
-						<label style="display:block; font-size:0.75em; color:var(--text-secondary); margin-bottom:5px;">TIME</label>
-						<div style="display:flex; gap:5px; align-items:center;">
-							<select id="newPlayHour" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
-								<option value="" disabled selected>HH</option>
-							</select>
-							<select id="newPlayMinute" style="background:var(--input-bg); color:var(--input-text); border:1px solid var(--border); padding:8px; border-radius:4px;">
-								<option value="" disabled selected>MM</option>
-							</select>
-						</div>
-					</div>
-					<div>
-						<button id="addScheduledPlayBtn" class="btn primary" style="white-space: nowrap; background: var(--accent-teal); border:none; padding: 8px 15px;" onclick="addScheduledPlay()">
-							➕ Add
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
 		</div>
 		<div id="tab-services" class="tools-subpage" style="display:none">
 			<div class="card card-accent-purple" style="margin-bottom: 25px; height:auto;">
@@ -411,6 +454,15 @@
 						<button id="addWatchdogSpeakerBtn" class="btn primary" style="white-space: nowrap; background: #f39c12; border:none; padding: 8px 15px;" onclick="addWatchdogSpeaker()">
 							➕ Add
 						</button>
+					</div>
+				</div>
+
+				<div id="watchdog-log-container" style="display:none; margin-top:15px;">
+					<div style="font-size:0.85em; color:var(--text-secondary); margin-bottom:8px;">Viewing: <span id="watchdog-log-label" style="color:var(--text); font-weight:bold;"></span></div>
+					<textarea id="watchdog-log-viewer" class="console-preview" style="height:300px;" readonly></textarea>
+					<div style="display:flex; gap:15px; margin-top:15px; align-items:center; flex-wrap:wrap;">
+						<button class="btn" onclick="fetchWatchdogLog()">🔄 Refresh</button>
+						<button class="btn primary" style="background:#3498db; color:white; border:none; margin-left:auto;" onclick="downloadWatchdogLog()">💾 Download .txt</button>
 					</div>
 				</div>
 
@@ -632,8 +684,8 @@
 		}
 
 		function populatePlayTimeSelect() {
-		    const hourSel = document.getElementById('newPlayHour');
-		    const minSel  = document.getElementById('newPlayMinute');
+		    const hourSel = document.getElementById('newEventHour');
+		    const minSel  = document.getElementById('newEventMinute');
 		    if (!hourSel || !minSel) return;
 		    const hourOpts = ['<option value="" disabled selected>HH</option>'];
 		    for (let h = 0; h < 24; h++) {
@@ -747,8 +799,11 @@
 		            if (auditSel)   auditSel.disabled   = !fullSettingsPayload.scheduledSpeakerAudit;
 		            if (restartSel) restartSel.disabled = !fullSettingsPayload.scheduledRestart;
 
-		            // Re-render scheduled plays now that settings are loaded
-		            renderScheduledPlays();
+		            // Re-render scheduled events / power off timers now that settings are loaded.
+		            // loadTools() may have already called initScheduledEvents()/initPowerOffTimers()
+		            // before this fetch completed, causing the lists to render with 0 entries.
+		            renderScheduledEvents();
+		            renderPowerOffTimers();
 
 		            fullSettingsPayload.presetWatchdogMode = 'observe';
 
@@ -1085,75 +1140,81 @@
 		}
 
 		// =====================================================================
-		// SCHEDULED PLAY — CRUD
+		// SCHEDULED PLAY / OFF — CRUD
 		// =====================================================================
-		let scheduledPlaysDevices = [];
+		let scheduledEventsDevices = [];
 
-		function initScheduledPlays(devices) {
-		    scheduledPlaysDevices = Array.isArray(devices) ? devices.filter(d => d.online) : [];
-		    renderScheduledPlays();
-		    updateNewPlaySpeakerOptions();
+		function initScheduledEvents(devices) {
+		    scheduledEventsDevices = Array.isArray(devices) ? devices.filter(d => d.online) : [];
+		    renderScheduledEvents();
+		    updateNewEventSpeakerOptions();
 		}
 
-		function renderScheduledPlays() {
-		    const list   = document.getElementById('scheduledPlaysList');
-		    const empty  = document.getElementById('scheduledPlaysEmpty');
-		    const badge  = document.getElementById('scheduledPlayCount');
-		    const plays  = Array.isArray(fullSettingsPayload.scheduledPlays) ? fullSettingsPayload.scheduledPlays : [];
-		    const usedIps = new Set(plays.map(p => p.speakerIp));
+		function renderScheduledEvents() {
+		    const list   = document.getElementById('scheduledEventsList');
+		    const empty  = document.getElementById('scheduledEventsEmpty');
+		    const badge  = document.getElementById('scheduledEventCount');
+		    const events = Array.isArray(fullSettingsPayload.scheduledEvents) ? fullSettingsPayload.scheduledEvents : [];
 
-		    if (badge) badge.textContent = `${plays.length} Schedule${plays.length !== 1 ? 's' : ''}`;
+		    if (badge) badge.textContent = `${events.length} Schedule${events.length !== 1 ? 's' : ''}`;
 		    if (!list) return;
 
 		    // Clear existing rows (keep the empty placeholder node)
-		    [...list.querySelectorAll('li.sp-row')].forEach(el => el.remove());
+		    [...list.querySelectorAll('li.se-row')].forEach(el => el.remove());
 
-		    if (plays.length === 0) {
+		    if (events.length === 0) {
 		        if (empty) empty.style.display = '';
+		        updateNewEventSpeakerOptions();
 		        return;
 		    }
 		    if (empty) empty.style.display = 'none';
 
-		    plays.forEach((play, idx) => {
+		    events.forEach((evt, idx) => {
 		        const li = document.createElement('li');
-		        li.className = 'sp-row';
+		        li.className = 'se-row';
 		        li.style.cssText = 'display:flex; align-items:center; gap:10px; padding:10px; background:var(--input-bg); border-bottom:1px solid var(--border); flex-wrap:wrap;';
 
 		        // Speaker label
-		        const dev = scheduledPlaysDevices.find(d => d.ip === play.speakerIp);
-		        const spLabel = dev ? `${dev.name} (${play.speakerIp})` : play.speakerIp;
+		        const dev = scheduledEventsDevices.find(d => d.ip === evt.speakerIp);
+		        const spLabel = dev ? `${dev.name} (${evt.speakerIp})` : evt.speakerIp;
 
-		        const h = play.hour ?? 0;
-		        const m = play.minute ?? 0;
+		        const h = evt.hour ?? 0;
+		        const m = evt.minute ?? 0;
 		        const ampm = h < 12 ? 'AM' : 'PM';
 		        const h12  = h % 12 || 12;
 		        const timeLabel = `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
 
-		        const enabled = play.enabled !== false;
+		        const actionLabel = evt.action === 'off' ? '🌙 Power Off' : `▶️ Preset ${evt.preset}`;
+
+		        const enabled = evt.enabled !== false;
 		        li.style.opacity = enabled ? '1' : '0.5';
 		        li.innerHTML = `
-		            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleScheduledPlay(${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:var(--accent); flex-shrink:0;">
-		            <span style="color:var(--text); font-weight:bold; white-space:nowrap;">${timeLabel} — Preset ${play.preset} — ${spLabel}</span>
+		            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleScheduledEvent(${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:var(--accent); flex-shrink:0;">
+		            <span style="color:var(--text); font-weight:bold; white-space:nowrap;">${timeLabel} — ${actionLabel} — ${spLabel}</span>
 		            <span style="flex-grow:1;"></span>
-		            <button onclick="removeScheduledPlay(${idx})" style="background:var(--danger); color:#fff; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✕</button>
+		            <button onclick="removeScheduledEvent(${idx})" style="background:var(--danger); color:#fff; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✕</button>
 		        `;
 		        list.appendChild(li);
 		    });
 
-		    updateNewPlaySpeakerOptions();
+		    updateNewEventSpeakerOptions();
 		}
 
-		function updateNewPlaySpeakerOptions() {
-		    const sel    = document.getElementById('newPlaySpeaker');
-		    const addBtn = document.getElementById('addScheduledPlayBtn');
+		// A speaker may have one PLAY schedule and one OFF schedule at once, just not two of
+		// the same action — so which speakers are "used" depends on the action currently picked.
+		function updateNewEventSpeakerOptions() {
+		    const sel       = document.getElementById('newEventSpeaker');
+		    const addBtn    = document.getElementById('addScheduledEventBtn');
+		    const actionSel = document.getElementById('newEventAction');
 		    if (!sel) return;
 
-		    const plays   = Array.isArray(fullSettingsPayload.scheduledPlays) ? fullSettingsPayload.scheduledPlays : [];
-		    const usedIps = new Set(plays.map(p => p.speakerIp));
+		    const action  = actionSel ? actionSel.value : 'play';
+		    const events  = Array.isArray(fullSettingsPayload.scheduledEvents) ? fullSettingsPayload.scheduledEvents : [];
+		    const usedIps = new Set(events.filter(e => e.action === action).map(e => e.speakerIp));
 
-		    const available = scheduledPlaysDevices.filter(d => !usedIps.has(d.ip));
+		    const available = scheduledEventsDevices.filter(d => !usedIps.has(d.ip));
 		    sel.innerHTML = '<option value="" disabled selected>Select speaker...</option>' +
-		        scheduledPlaysDevices.map(d => {
+		        scheduledEventsDevices.map(d => {
 		            const used = usedIps.has(d.ip);
 		            return `<option value="${d.ip}" ${used ? 'disabled style="color:var(--text-secondary);"' : ''}>${d.name} (${d.ip})${used ? ' — Scheduled' : ''}</option>`;
 		        }).join('');
@@ -1161,56 +1222,181 @@
 		    if (addBtn) addBtn.disabled = available.length === 0;
 		}
 
-		async function addScheduledPlay() {
-		    const hourSel    = document.getElementById('newPlayHour');
-		    const minSel     = document.getElementById('newPlayMinute');
-		    const speakerSel = document.getElementById('newPlaySpeaker');
-		    const presetSel  = document.getElementById('newPlayPreset');
+		function updateNewEventActionUI() {
+		    const action = document.getElementById('newEventAction')?.value;
+		    const presetWrap = document.getElementById('newEventPresetWrap');
+		    if (presetWrap) presetWrap.style.display = action === 'off' ? 'none' : '';
+		    updateNewEventSpeakerOptions();
+		}
+
+		async function addScheduledEvent() {
+		    const hourSel    = document.getElementById('newEventHour');
+		    const minSel     = document.getElementById('newEventMinute');
+		    const speakerSel = document.getElementById('newEventSpeaker');
+		    const actionSel  = document.getElementById('newEventAction');
+		    const presetSel  = document.getElementById('newEventPreset');
 
 		    const hVal   = hourSel?.value;
 		    const mVal   = minSel?.value;
 		    const ip     = speakerSel?.value;
-		    const preset = parseInt(presetSel?.value || '1', 10);
+		    const action = actionSel?.value || 'play';
 
 		    if (hVal === '' || hVal == null || mVal === '' || mVal == null || !ip) return alert('Please select a time and a speaker.');
 
 		    const h = parseInt(hVal, 10);
 		    const m = parseInt(mVal, 10);
 
-		    if (!fullSettingsPayload.scheduledPlays) fullSettingsPayload.scheduledPlays = [];
-		    fullSettingsPayload.scheduledPlays.push({ speakerIp: ip, preset, hour: h, minute: m, enabled: true });
+		    const entry = { speakerIp: ip, action, hour: h, minute: m, enabled: true };
+		    if (action === 'play') entry.preset = parseInt(presetSel?.value || '1', 10);
+
+		    if (!fullSettingsPayload.scheduledEvents) fullSettingsPayload.scheduledEvents = [];
+		    fullSettingsPayload.scheduledEvents.push(entry);
 
 		    // Reset add-row
 		    hourSel.selectedIndex = 0;
 		    minSel.selectedIndex  = 0;
 		    speakerSel.value = '';
 
-		    renderScheduledPlays();
-		    await saveScheduledPlays();
+		    renderScheduledEvents();
+		    await saveScheduledEvents();
 		}
 
-		async function removeScheduledPlay(index) {
-		    if (!Array.isArray(fullSettingsPayload.scheduledPlays)) return;
-		    fullSettingsPayload.scheduledPlays.splice(index, 1);
-		    renderScheduledPlays();
-		    await saveScheduledPlays();
+		async function removeScheduledEvent(index) {
+		    if (!Array.isArray(fullSettingsPayload.scheduledEvents)) return;
+		    fullSettingsPayload.scheduledEvents.splice(index, 1);
+		    renderScheduledEvents();
+		    await saveScheduledEvents();
 		}
 
-		async function toggleScheduledPlay(index, enabled) {
-		    if (!Array.isArray(fullSettingsPayload.scheduledPlays)) return;
-		    fullSettingsPayload.scheduledPlays[index].enabled = enabled;
-		    renderScheduledPlays();
-		    await saveScheduledPlays(true);
+		async function toggleScheduledEvent(index, enabled) {
+		    if (!Array.isArray(fullSettingsPayload.scheduledEvents)) return;
+		    fullSettingsPayload.scheduledEvents[index].enabled = enabled;
+		    renderScheduledEvents();
+		    await saveScheduledEvents(true);
 		}
 
-async function saveScheduledPlays(silent = false) {
+async function saveScheduledEvents(silent = false) {
 		    if (silent) {
 		        // Fire-and-forget without alert
 		        fetch('api/admin/settings', {
 		            method: 'POST',
 		            headers: { 'Content-Type': 'application/json' },
 		            body: JSON.stringify(fullSettingsPayload)
-		        }).catch(e => console.error('[ScheduledPlay] Save failed:', e.message));
+		        }).catch(e => console.error('[ScheduledEvents] Save failed:', e.message));
+		    } else {
+		        await pushSettingsToServer();
+		    }
+		}
+		// =====================================================================
+
+		// =====================================================================
+		// POWER OFF TIMER — CRUD
+		// =====================================================================
+		let powerOffTimerDevices = [];
+
+		function initPowerOffTimers(devices) {
+		    powerOffTimerDevices = Array.isArray(devices) ? devices.filter(d => d.online) : [];
+		    renderPowerOffTimers();
+		    updateNewPowerOffTimerSpeakerOptions();
+		}
+
+		function renderPowerOffTimers() {
+		    const list   = document.getElementById('powerOffTimersList');
+		    const empty  = document.getElementById('powerOffTimersEmpty');
+		    const badge  = document.getElementById('powerOffTimerCount');
+		    const timers = Array.isArray(fullSettingsPayload.powerOffTimers) ? fullSettingsPayload.powerOffTimers : [];
+
+		    if (badge) badge.textContent = `${timers.length} Timer${timers.length !== 1 ? 's' : ''}`;
+		    if (!list) return;
+
+		    [...list.querySelectorAll('li.pot-row')].forEach(el => el.remove());
+
+		    if (timers.length === 0) {
+		        if (empty) empty.style.display = '';
+		        updateNewPowerOffTimerSpeakerOptions();
+		        return;
+		    }
+		    if (empty) empty.style.display = 'none';
+
+		    timers.forEach((timer, idx) => {
+		        const li = document.createElement('li');
+		        li.className = 'pot-row';
+		        li.style.cssText = 'display:flex; align-items:center; gap:10px; padding:10px; background:var(--input-bg); border-bottom:1px solid var(--border); flex-wrap:wrap;';
+
+		        const dev = powerOffTimerDevices.find(d => d.ip === timer.speakerIp);
+		        const spLabel = dev ? `${dev.name} (${timer.speakerIp})` : timer.speakerIp;
+
+		        const enabled = timer.enabled !== false;
+		        li.style.opacity = enabled ? '1' : '0.5';
+		        li.innerHTML = `
+		            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="togglePowerOffTimer(${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:var(--accent); flex-shrink:0;">
+		            <span style="color:var(--text); font-weight:bold; white-space:nowrap;">${timer.durationMinutes} min after power-on — ${spLabel}</span>
+		            <span style="flex-grow:1;"></span>
+		            <button onclick="removePowerOffTimer(${idx})" style="background:var(--danger); color:#fff; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✕</button>
+		        `;
+		        list.appendChild(li);
+		    });
+
+		    updateNewPowerOffTimerSpeakerOptions();
+		}
+
+		function updateNewPowerOffTimerSpeakerOptions() {
+		    const sel    = document.getElementById('newPowerOffTimerSpeaker');
+		    const addBtn = document.getElementById('addPowerOffTimerBtn');
+		    if (!sel) return;
+
+		    const timers  = Array.isArray(fullSettingsPayload.powerOffTimers) ? fullSettingsPayload.powerOffTimers : [];
+		    const usedIps = new Set(timers.map(t => t.speakerIp));
+
+		    const available = powerOffTimerDevices.filter(d => !usedIps.has(d.ip));
+		    sel.innerHTML = '<option value="" disabled selected>Select speaker...</option>' +
+		        powerOffTimerDevices.map(d => {
+		            const used = usedIps.has(d.ip);
+		            return `<option value="${d.ip}" ${used ? 'disabled style="color:var(--text-secondary);"' : ''}>${d.name} (${d.ip})${used ? ' — Has Timer' : ''}</option>`;
+		        }).join('');
+
+		    if (addBtn) addBtn.disabled = available.length === 0;
+		}
+
+		async function addPowerOffTimer() {
+		    const speakerSel  = document.getElementById('newPowerOffTimerSpeaker');
+		    const durationSel = document.getElementById('newPowerOffTimerDuration');
+
+		    const ip = speakerSel?.value;
+		    const durationMinutes = parseInt(durationSel?.value || '60', 10);
+
+		    if (!ip) return alert('Please select a speaker.');
+
+		    if (!fullSettingsPayload.powerOffTimers) fullSettingsPayload.powerOffTimers = [];
+		    fullSettingsPayload.powerOffTimers.push({ speakerIp: ip, durationMinutes, enabled: true });
+
+		    speakerSel.value = '';
+
+		    renderPowerOffTimers();
+		    await savePowerOffTimers();
+		}
+
+		async function removePowerOffTimer(index) {
+		    if (!Array.isArray(fullSettingsPayload.powerOffTimers)) return;
+		    fullSettingsPayload.powerOffTimers.splice(index, 1);
+		    renderPowerOffTimers();
+		    await savePowerOffTimers();
+		}
+
+		async function togglePowerOffTimer(index, enabled) {
+		    if (!Array.isArray(fullSettingsPayload.powerOffTimers)) return;
+		    fullSettingsPayload.powerOffTimers[index].enabled = enabled;
+		    renderPowerOffTimers();
+		    await savePowerOffTimers(true);
+		}
+
+		async function savePowerOffTimers(silent = false) {
+		    if (silent) {
+		        fetch('api/admin/settings', {
+		            method: 'POST',
+		            headers: { 'Content-Type': 'application/json' },
+		            body: JSON.stringify(fullSettingsPayload)
+		        }).catch(e => console.error('[PowerOffTimer] Save failed:', e.message));
 		    } else {
 		        await pushSettingsToServer();
 		    }
@@ -1249,6 +1435,7 @@ async function saveScheduledPlays(silent = false) {
 		        li.innerHTML = `
 		            <span style="color:var(--text); font-weight:bold;">${label}</span>
 		            <span style="flex-grow:1;"></span>
+		            <button onclick="viewWatchdogLog('${ip}', '${label.replace(/'/g, "\\'")}')" style="background:#3498db; color:#fff; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">📄 View Log</button>
 		            <button onclick="pushPresetNow('${ip}', this)" style="background:#f39c12; color:#fff; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">🔁 Push Now</button>
 		            <button onclick="removeWatchdogSpeaker('${ip}')" style="background:var(--danger); color:#fff; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✕</button>
 		        `;
@@ -1293,6 +1480,45 @@ async function saveScheduledPlays(silent = false) {
 		    fullSettingsPayload.presetWatchdogSpeakers = fullSettingsPayload.presetWatchdogSpeakers.filter(x => x !== ip);
 		    renderWatchdogSpeakers();
 		    await saveWatchdogSpeakers();
+		}
+
+		let currentWatchdogLogIp = null;
+
+		function viewWatchdogLog(ip, label) {
+		    currentWatchdogLogIp = ip;
+		    const container = document.getElementById('watchdog-log-container');
+		    const labelEl = document.getElementById('watchdog-log-label');
+		    if (labelEl) labelEl.textContent = label;
+		    if (container) container.style.display = 'block';
+		    fetchWatchdogLog();
+		}
+
+		async function fetchWatchdogLog() {
+		    const viewer = document.getElementById('watchdog-log-viewer');
+		    if (!viewer || !currentWatchdogLogIp) return;
+		    viewer.value = "Fetching log...";
+		    try {
+		        const res = await fetch(`api/watchdog-log/${currentWatchdogLogIp}`);
+		        const text = await res.text();
+		        viewer.value = text || "No log available yet.";
+		    } catch (e) {
+		        viewer.value = "Failed to load log. Is the server running?";
+		    }
+		}
+
+		function downloadWatchdogLog() {
+		    const viewer = document.getElementById('watchdog-log-viewer');
+		    const text = viewer?.value;
+		    if (!currentWatchdogLogIp || !text || text.includes("Fetching log..."))
+		        return alert("No log to download yet.");
+
+		    const blob = new Blob([text], { type: 'text/plain' });
+		    const a = document.createElement('a');
+		    a.href = URL.createObjectURL(blob);
+		    a.download = `watchdog-log-${currentWatchdogLogIp}-${new Date().toISOString().slice(0, 10)}.txt`;
+		    document.body.appendChild(a);
+		    a.click();
+		    document.body.removeChild(a);
 		}
 
 
@@ -1352,7 +1578,8 @@ async function saveScheduledPlays(silent = false) {
 
 		        // ---> BOOT STEREO UI WITH SHARED DATA
 		        initStereoUI(devices);
-		        initScheduledPlays(devices);
+		        initScheduledEvents(devices);
+		        initPowerOffTimers(devices);
 		        initPresetWatchdogUI(devices);
 
 		        // V4 speaker config card
@@ -1376,7 +1603,8 @@ async function saveScheduledPlays(silent = false) {
 		        console.error("Failed to load tools / status", e);
 		        // Still boot the stereo UI with an empty array so dummies inject
 		        initStereoUI([]);
-		        initScheduledPlays([]);
+		        initScheduledEvents([]);
+		        initPowerOffTimers([]);
 		        initPresetWatchdogUI([]);
 		    }
 		}

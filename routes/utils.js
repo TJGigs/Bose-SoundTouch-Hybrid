@@ -89,6 +89,8 @@ let lastObserveRunMs = null;       // separate 5-min clock for observe mode
 let lastObserveHourlyLogMs = null; // hourly "still watching" heartbeat for observe mode
 const firedToday = new Set();
 const stuckStateStreak = {};       // ip → consecutive 5-min polls seen with PLAY_STATE + INVALID_SOURCE
+const powerOffTimerLastOnState = {};  // ip → last observed "is on" bool, for power-on edge detection
+const powerOffTimerDeadline = {};     // ip → epoch ms when an armed power off timer should fire
 
 // --- SHARED HYBRID PRESET DEFINITIONS ---
 // Single source of truth for what "Hybrid Preset N" is: the URL, the display name.
@@ -371,24 +373,74 @@ function startScheduler() {
             }
         }
 
-        // 4. SCHEDULED PLAYS
-        const scheduledPlays = Array.isArray(settings.scheduledPlays) ? settings.scheduledPlays : [];
-        for (const play of scheduledPlays) {
-            if (!play.speakerIp || !play.preset || play.hour == null) continue;
-            if (play.enabled === false) continue;
-            const playHour   = parseInt(play.hour, 10);
-            const playMinute = parseInt(play.minute ?? 0, 10);
-            if (hours !== playHour || minutes !== playMinute) continue;
-            const playKey = `${today}-${play.speakerIp}-${play.preset}`;
-            if (firedToday.has(playKey)) continue;
-            firedToday.add(playKey);
+        // 4. SCHEDULED EVENTS (Play a preset, or Power Off — same clock-time trigger, different action)
+        const scheduledEvents = Array.isArray(settings.scheduledEvents) ? settings.scheduledEvents : [];
+        for (const evt of scheduledEvents) {
+            if (!evt.speakerIp || evt.hour == null) continue;
+            if (evt.action === 'play' && !evt.preset) continue;
+            if (evt.enabled === false) continue;
+            const evtHour   = parseInt(evt.hour, 10);
+            const evtMinute = parseInt(evt.minute ?? 0, 10);
+            if (hours !== evtHour || minutes !== evtMinute) continue;
+            const evtKey = `${today}-${evt.speakerIp}-${evt.action}-${evt.preset ?? ''}`;
+            if (firedToday.has(evtKey)) continue;
+            firedToday.add(evtKey);
 			    console.log(`\n=======================================================================`);
-            console.log(`[Scheduler] ⏰ Scheduled Play: Speaker ${play.speakerIp} Preset ${play.preset}`);
+            if (evt.action === 'off') {
+                console.log(`[Scheduler] Scheduled Off: Speaker ${evt.speakerIp}`);
 			    console.log(`=======================================================================`);
+                try {
+                    await powerOffSpeaker(evt.speakerIp);
+                } catch (e) {
+                    console.error(`[Scheduler] ❌ Scheduled Off failed (${evt.speakerIp}):`, e.message);
+                }
+            } else {
+                console.log(`[Scheduler] Scheduled Play: Speaker ${evt.speakerIp} Preset ${evt.preset}`);
+			    console.log(`=======================================================================`);
+                try {
+                    await executeSmartPreset(evt.speakerIp, evt.preset);
+                } catch (e) {
+                    console.error(`[Scheduler] ❌ Scheduled Play failed (${evt.speakerIp} P${evt.preset}):`, e.message);
+                }
+            }
+        }
+
+        // 5. POWER OFF TIMER WATCHER — duration-from-power-on, not clock time. Edge-detects the
+        // STANDBY→on transition each tick (same direct now_playing poll checkAndRecoverStuckSpeaker
+        // uses above) and arms a deadline; fires powerOffSpeaker once that deadline passes.
+        const powerOffTimers = Array.isArray(settings.powerOffTimers) ? settings.powerOffTimers : [];
+        for (const timer of powerOffTimers) {
+            if (!timer.speakerIp || !timer.durationMinutes) continue;
+            const ip = timer.speakerIp;
+
+            if (timer.enabled === false) {
+                delete powerOffTimerDeadline[ip];
+                continue;
+            }
+
+            let isOn;
             try {
-                await executeSmartPreset(play.speakerIp, play.preset);
+                const statusRes = await axios.get(`http://${ip}:8090/now_playing`, { timeout: 2000 });
+                isOn = !statusRes.data.includes('source="STANDBY"');
             } catch (e) {
-                console.error(`[Scheduler] ❌ Scheduled Play failed (${play.speakerIp} P${play.preset}):`, e.message);
+                continue; // unreachable this tick — leave any armed deadline as-is, retry next tick
+            }
+
+            const wasOn = powerOffTimerLastOnState[ip];
+            if (isOn && wasOn !== true) {
+                powerOffTimerDeadline[ip] = Date.now() + timer.durationMinutes * 60000;
+                console.log(`[Scheduler] Power Off Timer armed for ${ip} — powers off in ${timer.durationMinutes} min.`);
+            }
+            powerOffTimerLastOnState[ip] = isOn;
+
+            if (powerOffTimerDeadline[ip] && Date.now() >= powerOffTimerDeadline[ip]) {
+                delete powerOffTimerDeadline[ip];
+                console.log(`[Scheduler] Power Off Timer expired for ${ip} — powering off.`);
+                try {
+                    await powerOffSpeaker(ip);
+                } catch (e) {
+                    console.error(`[Scheduler] ❌ Power Off Timer failed (${ip}):`, e.message);
+                }
             }
         }
     }, 60000);
@@ -430,27 +482,35 @@ async function executeSmartPreset(ip, id) {
 }
 
 
+// --- SMART POWER OFF (single speaker) ---
+// Shared by powerOffAllSpeakers, Scheduled Off, and the Power Off Timer watcher.
+// Routes through the Smart Controller (not a raw WAPI call) so it inherits
+// the same optimistic-execution/self-healing key handling as every other
+// POWER command in the app. Returns true only if a power-down was actually sent.
+async function powerOffSpeaker(ip, label = ip) {
+    const LOCAL_PORT = process.env.APP_PORT || 3000;
+    try {
+        const statusRes = await axios.get(`http://${ip}:8090/now_playing`, { timeout: 2000 });
+        if (statusRes.data.includes('source="STANDBY"')) return false;
+        console.log(`   └─ Initiating smart power-down for ${label}...`);
+        console.log(`   └─ Routing POWER command through the Smart Controller...`);
+        await axios.post(`http://127.0.0.1:${LOCAL_PORT}/api/key`, { ip, key: 'POWER' });
+        return true;
+    } catch (e) {
+        console.error(`   └─ ⚠️ Could not reach ${label} to power it down.`);
+        return false;
+    }
+}
+
 // --- CLEAN SLATE PROTOCOL (SMART POWER OFF ALL) ---
 async function powerOffAllSpeakers() {
     const speakersPath = path.join(process.cwd(), 'config', 'speakers.json');
     if (!fs.existsSync(speakersPath)) return;
 
     const SPEAKERS = JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
-    const LOCAL_PORT = process.env.APP_PORT || 3000;
     console.log(`\n[Admin] 🧹 Putting all active speakers to sleep for a clean restart...`);
 
-    const sleepTasks = SPEAKERS.map(async (speaker) => {
-        try {
-            const statusRes = await axios.get(`http://${speaker.ip}:8090/now_playing`, { timeout: 2000 });
-            if (!statusRes.data.includes('source="STANDBY"')) {
-                console.log(`   └─ 💤 Initiating smart power-down for ${speaker.name}...`);
-                console.log(`   └─ Routing POWER command through the Smart Controller...`);
-                await axios.post(`http://127.0.0.1:${LOCAL_PORT}/api/key`, { ip: speaker.ip, key: 'POWER' });
-            }
-        } catch (e) {
-            console.error(`   └─ ⚠️ Could not reach ${speaker.name} to power it down.`);
-        }
-    });
+    const sleepTasks = SPEAKERS.map(speaker => powerOffSpeaker(speaker.ip, speaker.name));
 
     await Promise.allSettled(sleepTasks);
     await new Promise(r => setTimeout(r, 1500));
@@ -656,6 +716,7 @@ module.exports = {
 	runSpeakerAudit,
 	executeSmartPreset,
     powerOffAllSpeakers,
+    powerOffSpeaker,
     executeSmartShutdown,
     scheduleProviderReload,
     isHybridContentItem,

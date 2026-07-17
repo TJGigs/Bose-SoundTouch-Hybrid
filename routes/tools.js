@@ -166,6 +166,26 @@ router.post('/admin/force_preset_push', async (req, res) => {
     }
 });
 
+// --- PRESET WATCHDOG: LOG VIEWER/DOWNLOAD ---
+// Serves watchdog_<ip>.json exactly as written to disk — no headers, no
+// reformatting — so it reads the same in the UI/download as it does when
+// pulled straight from config/logs via SSH/Samba, which HA add-on installs
+// typically don't have access to. :ip is only ever used to build the
+// filename after being matched against the watchdog list below, so there's
+// no path-traversal surface here.
+router.get('/watchdog-log/:ip', (req, res) => {
+    const { ip } = req.params;
+    const settings = getSettings();
+    const watched = Array.isArray(settings.presetWatchdogSpeakers) ? settings.presetWatchdogSpeakers : [];
+    if (!watched.includes(ip)) {
+        return res.status(404).type('text/plain').send(`${ip} is not on the Preset Watchdog list.`);
+    }
+
+    const logPath = path.join(process.cwd(), 'config', 'logs', `watchdog_${ip.replace(/\./g, '_')}.json`);
+    const watchdogLog = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : null;
+    res.type('text/plain').send(watchdogLog || 'No watchdog events logged yet for this speaker.');
+});
+
 // ============================================================================
 // ST10 STEREO PAIRING API (Configuration)
 // ============================================================================
@@ -454,15 +474,23 @@ router.delete('/admin/speakers/:ip', (req, res) => {
             }
         }
 
-        // Cascade: settings.json — scheduled plays + preset watchdog list
+        // Cascade: settings.json — scheduled events, power off timers + preset watchdog list
         const settings = getSettings();
         let settingsChanged = false;
 
-        if (Array.isArray(settings.scheduledPlays)) {
-            const before = settings.scheduledPlays.length;
-            settings.scheduledPlays = settings.scheduledPlays.filter(p => p.speakerIp !== ip);
-            if (settings.scheduledPlays.length !== before) {
-                console.log(`[Tools] 🗑️ Removed ${before - settings.scheduledPlays.length} scheduled play(s) for ${ip}`);
+        if (Array.isArray(settings.scheduledEvents)) {
+            const before = settings.scheduledEvents.length;
+            settings.scheduledEvents = settings.scheduledEvents.filter(e => e.speakerIp !== ip);
+            if (settings.scheduledEvents.length !== before) {
+                console.log(`[Tools] 🗑️ Removed ${before - settings.scheduledEvents.length} scheduled event(s) for ${ip}`);
+                settingsChanged = true;
+            }
+        }
+        if (Array.isArray(settings.powerOffTimers)) {
+            const before = settings.powerOffTimers.length;
+            settings.powerOffTimers = settings.powerOffTimers.filter(t => t.speakerIp !== ip);
+            if (settings.powerOffTimers.length !== before) {
+                console.log(`[Tools] 🗑️ Removed ${before - settings.powerOffTimers.length} power off timer(s) for ${ip}`);
                 settingsChanged = true;
             }
         }

@@ -8,7 +8,7 @@ Self-hosted replacement for Bose's discontinued SoundTouch Cloud service. Restor
 
 ***You must verify your SoundTouch speakers and streaming providers are fully working inside of Music Assistant before installing SoundTouch Hybrid.***
 
-Install Music Assistant (MASS): ***version 2.9.8 or later is required***
+Install Music Assistant (MASS): ***version 2.9.9 or later is required***
 
 1. **For installation instructions and troubleshooting, use Music Assistant Help** — setup, providers, speaker testing, playback issues, etc.
    * See [MASS GitHub](https://github.com/music-assistant/server) and [MASS Website](https://www.music-assistant.io/installation)
@@ -53,9 +53,10 @@ Install Music Assistant (MASS): ***version 2.9.8 or later is required***
    * **Music Assistant Username / Password** Your MASS Username and Password. Both are required if not using a Music Assistant Auth Token.
    * **Music Assistant Auth Token** An alternative to the Username / Password. Both methods are fully supported; provide one or the other, not both.
    * **App IP / Music Assistant IP** — leave both blank, The add-on auto-detects the host address. Only set **Music Assistant IP** if MASS runs on a separate machine or VM.
+   * **Assigned App Port** — Home Assistant automatically assigns this add-on a free port; it's shown here read-only, for reference only. Any value typed into this field is ignored. There's nothing to configure and nothing that can conflict with another port on your Home Assistant host.
 4. Start the add-on. On first boot it scans your network and finds your SoundTouch speakers automatically.
-5. Open the add-on's panel from the Home Assistant sidebar to use the web app. It's also reachable directly at `http://<your-HA-host-IP>:3000/control.html`.
-6. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:3000/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
+5. Open the add-on's panel from the Home Assistant sidebar and use the **Open Web UI** button, or go directly to `http://<your-HA-host-IP>:<port>/control.html`, using the port shown in **Assigned App Port**.
+6. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:<port>/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
 
 ---
 

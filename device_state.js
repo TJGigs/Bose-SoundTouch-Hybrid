@@ -593,7 +593,7 @@ async function initDevice(device) {
                         presetId = parseInt(selection.preset.id || (selection.preset.$ && selection.preset.$.id) || 0);
                     }
                     if (presetId > 0) {
-                        console.log(`[DeviceState] PRESET_${presetId} press on ${device.ip} at ${Date.now()}ms`);
+                        console.log(`[DeviceState] PRESET_${presetId} press on ${device.ip}`);
                         const ci = selection.preset?.ContentItem;
                         if (ci) {
                             const source   = ci.$?.source   || ci.source   || '';

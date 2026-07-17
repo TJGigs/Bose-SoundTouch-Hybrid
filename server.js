@@ -1,10 +1,10 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v4";
+const CURRENT_VERSION = "v4.1";
 const ENV_SCHEMA_VERSION = "v4";
-const SETTINGS_SCHEMA_VERSION = "v4";
-const minReq = [2, 9, 8]; //MASS VERSION
+const SETTINGS_SCHEMA_VERSION = "v4.1";
+const minReq = [2, 9, 9]; //MASS VERSION
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 const express = require('express');
 const fs = require('fs');
@@ -177,7 +177,8 @@ const DEFAULT_SETTINGS = {
     presetPreview: true,
     restrictedMode: false,
     adminPin: "",
-    scheduledPlays: [],
+    scheduledEvents: [],
+    powerOffTimers: [],
     presetWatchdogSpeakers: [],
     speakerBlacklist: [],
     searchMenuOrder: DEFAULT_SEARCH_MENU_ORDER
@@ -363,7 +364,16 @@ if (!isReady) {
                 console.log("\n============================================================================");
                 console.log(`[Boot]  🔍  Speaker Discovery Scan (subnet ${subnet}.0/24)...`);
                 console.log("============================================================================");
-                const discovered = await discoverSpeakers(subnet);
+                let discovered = await discoverSpeakers(subnet);
+                if (discovered.length === 0) {
+                    // A cold container start can beat the host's network stack to the punch —
+                    // ARP/routing may not be settled yet for a 254-way parallel burst on the
+                    // very first boot after install. One retry after a short delay is enough
+                    // for it to resolve on its own without requiring a manual restart.
+                    console.log(`[Boot] First scan found 0 speakers — retrying once after a short delay (cold-start network settle)...`);
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    discovered = await discoverSpeakers(subnet);
+                }
                 const discoveredIps = new Set(discovered.map(s => s.ip));
 
                 let savedSpeakers = [];

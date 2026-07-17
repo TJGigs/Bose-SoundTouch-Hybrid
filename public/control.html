@@ -473,8 +473,8 @@
               return `<div class="card" style="min-height: auto; height: fit-content; align-self: start; border-style: dashed; opacity: 0.7;"><div class="header" style="margin-bottom: 0;"><h3>${d.name}</h3><span class="status" style="color: #e74c3c; font-weight: bold;">OFFLINE</span></div></div>`;
           const ui = calculateUi(d);
 
-          // EXCLUSION: Stereo Left channels are NOT standard multi-room masters
-          const isGroupMaster = d.zone && d.zone.master === d.mac && d.stereoRole !== 'LEFT';
+          // Stereo pair LEFT channels are full Zone participants — only RIGHT is excluded (it's never independently addressable).
+          const isGroupMaster = d.zone && d.zone.master === d.mac;
           const isGroupMember = d.zone && d.zone.master && !isGroupMaster;
           let statusText = ui.isStandby ? 'STANDBY' : 'ON';
           if (isGroupMaster)
@@ -482,8 +482,8 @@
           if (isGroupMember)
               statusText = 'SLAVE';
 
-          /// Determines visibility of the Sync/Join button. Hide if it's a stereo pair.
-          const showSync = !isGroupMaster && !isGroupMember && d.stereoRole !== 'LEFT';
+          /// Determines visibility of the Sync/Join button.
+          const showSync = !isGroupMaster && !isGroupMember;
           const syncText = ui.isStandby ? "Power On & Join" : "Sync to Master";
 
           // Calculates the group max volume for the Master's group slider.
@@ -739,7 +739,7 @@
           d.ip !== slaveIp &&
           d.online &&
           !d.isStandby &&
-          !d.stereoRole &&
+          d.stereoRole !== 'RIGHT' &&
           !(d.zone && d.zone.master && d.zone.master !== d.mac)
       );
 

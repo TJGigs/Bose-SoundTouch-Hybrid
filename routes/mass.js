@@ -24,7 +24,8 @@ function describeMassAuthError(e) {
 const PLAYER_ID_CACHE = {}; // Caches Player IDs, IPs, Names to reduce 'players/all' network calls.
 const PLAYER_IP_CACHE = {}; 
 const PLAYER_NAME_CACHE = {}; 
-const PRESET_MEMORY = {}; // Stores last used Preset ID for each speaker IP. 
+const PRESET_MEMORY = {}; // Stores last used Preset ID for each speaker IP.
+const LAST_PLAY_TS = {}; // ip -> epoch ms of the last playMedia() call, any caller/reason
 const httpAgent = new http.Agent({ keepAlive: true });
 const client = axios.create({httpAgent,timeout: 28000});
 
@@ -41,6 +42,7 @@ function setPresetMemory(ip, id) {
 }
 
 function getPresetMemory(ip) {return PRESET_MEMORY[ip] || null;}
+function getLastPlayTs(ip) {return LAST_PLAY_TS[ip] || null;}
 
 // --- GLITCH RECOVERY SYSTEM  ---
 // Tracks speakers that recently had timeout error so device_state knows to ignore "Idle" status.
@@ -108,6 +110,12 @@ async function play(target) {
 async function playMedia(target, item) {
     const player = await resolveTargetPlayer(target);
     if (!player) return false;
+
+    // Marks "a play attempt started for this ip right now" — any caller, any reason.
+    // Lets other flows (e.g. the handshake-recovery stream rescue) tell whether
+    // something already acted on this speaker since a given point in time, so they
+    // don't stomp on a fix that already landed.
+    LAST_PLAY_TS[player.targetIp] = Date.now();
 
     console.log(`[MASS] 🎵 Play Request: ${item.name} on ${player.targetName}`);
     await ensureSpeakerOn(player.targetIp);
@@ -745,6 +753,7 @@ module.exports = {
     describeMassAuthError,
     setPresetMemory,
     getPresetMemory,
+    getLastPlayTs,
     isRecovering,
     getHealth,
     resetHealth,

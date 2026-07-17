@@ -6,6 +6,7 @@ const path = require('path');
 const axios = require('axios');
 const xml2js = require('xml2js');
 const utils = require('./utils');
+const mass = require('./mass');
 
 const IP = process.env.APP_IP;
 const PORT = process.env.APP_PORT;
@@ -147,6 +148,53 @@ async function evaluateHandshake(ip) {
                     if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
                         utils.appendWatchdogLog(ip, { type: 'handshake_recovery', action: 'wapi_push_complete' });
                         await utils.queryPresetsForSpeaker(ip, 'post_recovery');
+                    }
+
+                    // STREAM RESCUE: the handshake break is Bose-side (NVRAM/cloud session),
+                    // not MASS-side — MASS keeps its own queue independently, so whatever was
+                    // playing when the speaker dropped is very likely still sitting in
+                    // queue.current_item. Reuses the exact same restart primitive as the
+                    // native-play-failure rescue in mass.play() (getRawMetadata + playMedia),
+                    // just triggered from this event instead of that one. Preset-agnostic —
+                    // works the same whether the interrupted stream was a Hybrid preset or
+                    // something browsed/searched directly.
+                    try {
+                        // Someone/something already issued a play command for this speaker since
+                        // the incident began (user walked up and pressed a preset themselves, most
+                        // likely) — don't stomp on it with a redundant restart. getRawMetadata()
+                        // always reflects MASS's current queue, so it would otherwise "rescue"
+                        // whatever's live right now — correct content, but still an unwanted
+                        // second restart on top of a fix that already landed.
+                        const lastPlayTs = mass.getLastPlayTs(ip);
+                        if (lastPlayTs && lastPlayTs > state.initTs) {
+                            console.log(`[Bose Cloud] Stream Rescue: skipped for ${ip} — a play command already landed at ${new Date(lastPlayTs).toISOString()}, after the incident started.`);
+                            if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
+                                utils.appendWatchdogLog(ip, { type: 'handshake_recovery', action: 'stream_rescue_skipped', reason: 'already_restarted_since_incident' });
+                            }
+                            return;
+                        }
+
+                        const maData = await mass.getRawMetadata(ip);
+                        if (maData && maData.item && maData.item.uri) {
+                            console.log(`[Bose Cloud] 🚑 Stream Rescue: MASS still shows "${maData.item.name || 'Unknown'}" queued for ${ip} (state: ${maData.state}) — restarting it.`);
+                            if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
+                                utils.appendWatchdogLog(ip, { type: 'handshake_recovery', action: 'stream_rescue_attempt', track: maData.item.name || null, mass_state: maData.state || null });
+                            }
+                            const rescued = await mass.playMedia(ip, { uri: maData.item.uri, name: maData.item.name || 'Resumed Stream' });
+                            if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
+                                utils.appendWatchdogLog(ip, { type: 'handshake_recovery', action: rescued ? 'stream_rescue_complete' : 'stream_rescue_failed' });
+                            }
+                        } else {
+                            console.log(`[Bose Cloud] Stream Rescue: nothing queued in MASS for ${ip} — nothing to restart.`);
+                            if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
+                                utils.appendWatchdogLog(ip, { type: 'handshake_recovery', action: 'stream_rescue_skipped', reason: 'no_current_item' });
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`[Bose Cloud] ❌ Stream Rescue check FAILED for ${ip} — ${e.message}`);
+                        if (global.WATCHDOG_SPEAKERS?.includes(ip)) {
+                            utils.appendWatchdogLog(ip, { type: 'handshake_recovery', action: 'stream_rescue_error', error: e.message });
+                        }
                     }
                 } catch (e) {
                     console.log(`[Bose Cloud] ❌ WAPI Preset Recovery FAILED for ${ip} — ${e.message}`);
@@ -442,7 +490,7 @@ router.get('/streaming/account/:id/device/:deviceId/presets', (req, res) => {
 
 router.get('/streaming/account/:id/provider_settings', (req, res) => {
     const reqIp = getIp(req);
-    console.log(`[Bose Cloud] Provider Settings requested by ${reqIp}. Return 200 per BoseCloud UberBose/SoundCork).`);
+    if (isDebug()) console.log(`[Bose Cloud] Provider Settings requested by ${reqIp}. Return 200 per BoseCloud UberBose/SoundCork).`);
     res.set('Content-Type', 'application/vnd.bose.streaming-v1.2+xml');
     res.status(200).send('');
 });

@@ -222,7 +222,7 @@
     
     <div style="display:flex; justify-content:flex-end; gap:10px">
       <button class="btn-sm" onclick="closeModal()">Cancel</button>
-      <button class="primary" onclick="saveItem(this)">Save</button>
+      <button class="primary" id="modal-save-btn" onclick="saveItem(this)">Save</button>
     </div>
   </div>
 </div>
@@ -909,7 +909,7 @@
       }
 
       if (!Array.isArray(data) || data.length === 0) {
-          box.innerHTML = '<div style="padding:20px; color:#aaa">No results found (Strict Filter is ON).</div>';
+          box.innerHTML = '<div style="padding:20px; color:#aaa">No results found.</div>';
       } else {
           const allowSave = (state.source !== 'spotify');
           box.innerHTML = data.map(i => renderCard(i, false, allowSave)).join('');
@@ -1058,6 +1058,13 @@
 
   function openModal(item) {
       document.getElementById('modal').style.display = 'flex';
+
+      // Reset the Save button — saveItem() leaves it disabled and reading "✅ Saved!"
+      // after a successful save, and it's a static button, not recreated per-open.
+      const saveBtn = document.getElementById('modal-save-btn');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+      saveBtn.classList.remove('btn-success');
 
       // Populate hidden fields
       ['uuid', 'uri', 'image', 'type', 'subtitle', 'provider'].forEach(field => {

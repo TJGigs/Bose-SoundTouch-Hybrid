@@ -20,6 +20,20 @@ function getSpeakers() {
     return JSON.parse(fs.readFileSync(speakersPath, 'utf8'));
 }
 
+// Fresh read every call, same reasoning as getSpeakers() — stereo_pairs.json changes
+// at runtime via the Tools page. RIGHT channels are never independently addressable
+// as a Zone master (no audio of their own, only what LEFT relays to them).
+const stereoPairsPath = path.join(process.cwd(), 'config', 'stereo_pairs.json');
+function getStereoPairRightIps() {
+    try {
+        if (!fs.existsSync(stereoPairsPath)) return new Set();
+        const pairs = JSON.parse(fs.readFileSync(stereoPairsPath, 'utf8'));
+        return new Set(pairs.map(p => p.rightIp));
+    } catch (e) {
+        return new Set();
+    }
+}
+
 // SYNC_LOCKS: Prevents multiple "Join" operations from overlapping on the same device.
 const SYNC_LOCKS = new Set();
 const MAC_CACHE = {};
@@ -375,9 +389,11 @@ router.post('/join', async(req, res) => {
             }
         } else {
             // Auto-pick: find the best eligible master (existing behavior)
+            const rightIps = getStereoPairRightIps();
             const candidates = [];
             for (const d of speakers) {
                 if (d.ip === slaveIp) continue;
+                if (rightIps.has(d.ip)) continue; // RIGHT can't be auto-picked as master
                 try {
                     const state = await deviceState.get(d);
                     if (state && !state.isStandby) {

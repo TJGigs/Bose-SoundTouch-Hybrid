@@ -497,20 +497,27 @@ router.post('/manager/search', async(req, res) => {
                     if (!hasArt) return; 
                 }
                 
-                // --- STRICT TEXT MATCHING (Updated for NAS Metadata) ---
-                let content = safeStr(i.name);
-                
-                // Ensure we catch metadata specific to NAS files
-                let artName = i.artist?.name || i.artist || i.metadata?.artist || "";
-                let albName = i.album?.name || i.album || i.metadata?.album || "";
-                
-                content += " " + safeStr(artName) + " " + safeStr(albName);
-                
-                if (i.artists) {
-                    i.artists.forEach(a => content += " " + safeStr(a.name || a));
-                }
+                // --- STRICT TEXT MATCHING (Updated for NAS Metadata) — DISABLED 2026-07-14 ---
+                // This re-filtered MASS's own search results by requiring the query to appear
+                // as a literal substring in name+artist+album. MASS's music/search already does
+                // provider-side relevance matching; this extra gate silently dropped legitimate
+                // results whenever the match wasn't literal — worst on radio, where station names
+                // are branded and rarely contain the search term verbatim (e.g. "jazz" won't
+                // literally match "SmoothVibes 102.3"). Confirmed root cause of a user report of
+                // "No results found" on station search. Origin unclear (likely v1, possibly a fix
+                // for one provider's loose NAS metadata that never got scoped to just that
+                // provider) — commented out rather than deleted since we don't remember the
+                // original reason. If results start looking noisy/irrelevant after this, start here.
+                //
+                // let content = safeStr(i.name);
+                // let artName = i.artist?.name || i.artist || i.metadata?.artist || "";
+                // let albName = i.album?.name || i.album || i.metadata?.album || "";
+                // content += " " + safeStr(artName) + " " + safeStr(albName);
+                // if (i.artists) {
+                //     i.artists.forEach(a => content += " " + safeStr(a.name || a));
+                // }
 
-                if ((type === 'all' || type === cat || (type === 'podcast' && cat === 'podcast_episode')) && content.includes(qLower)) {
+                if (type === 'all' || type === cat || (type === 'podcast' && cat === 'podcast_episode')) {
                     categoryItems.push({
                         uri: i.uri,
                         name: utils.scrubText(i.name),

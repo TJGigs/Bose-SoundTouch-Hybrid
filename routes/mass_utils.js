@@ -268,11 +268,14 @@ async function auditSpeakerConfig(baseUrl, reqConfig, massPlayers, speaker) {
 
 
 // --- DYNAMIC PLAYER CONFIGURATION ENFORCER (BOOT-TIME, MULTI-SPEAKER) ---
-// Runs at boot against all speakers found online. Waits up to 60s for MASS
-// to discover them, then waits 15s for protocol config keys to hydrate.
+// Runs at boot against all speakers found online. Waits up to ~3 minutes for
+// MASS to discover them (worst case: 18 attempts x (5s request timeout + 5s
+// sleep) — sized for a freshly-restarted MASS still running its own SSDP/DLNA
+// player rediscovery, which is slower than a normal healthy REST round-trip),
+// then waits 15s for protocol config keys to hydrate.
 async function enforcePlayerConfigs(speakers) {
     const baseUrl = `http://${process.env.MASS_IP}:${process.env.MASS_PORT}`;
-    console.log(`\n[Boot] ⏳ Waiting up to 60s for Music Assistant to discover speakers...`);
+    console.log(`\n[Boot] ⏳ Waiting up to 3 minutes for Music Assistant to discover speakers...`);
 
     try {
         const token = await mass.getToken();
@@ -283,7 +286,7 @@ async function enforcePlayerConfigs(speakers) {
         let massPlayers = [];
         let allDiscovered = false;
 
-        for (let attempt = 1; attempt <= 12; attempt++) {
+        for (let attempt = 1; attempt <= 18; attempt++) {
             const { data } = await axios.post(`${baseUrl}/api`, { command: "players/all", args: {} }, reqConfig).catch((e) => {
                 console.log(`[MASS Utils] ⚠️ players/all request failed (attempt ${attempt}): ${mass.describeMassAuthError(e)}`);
                 return { data: [] };

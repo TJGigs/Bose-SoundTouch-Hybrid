@@ -41,6 +41,22 @@ if [ -z "${MASS_IP}" ]; then
     bashio::log.info "mass_ip not set — defaulting to this host's address: ${MASS_IP}"
 fi
 
+# Not a user-editable option — Supervisor assigns this dynamically
+# (config.yaml's ingress_port: 0) and guarantees it stays reserved for this
+# add-on across every restart until uninstalled. See config.yaml's
+# ingress_port comment for the full mechanism.
+#
+# Queried directly via curl+jq (GET /addons/self/info) rather than
+# bashio::app.ingress_port — that helper isn't present in this base image's
+# bundled bashio version (confirmed via a real boot failure: "bashio::app.
+# ingress_port: command not found"). The .data unwrapping matches the same
+# Supervisor API convention already used in routes/mass_utils.js's
+# supervisorRequest()/discoverMusicAssistantAppSlug().
+APP_PORT="$(curl -sf -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/addons/self/info 2>/dev/null | jq -r '.data.ingress_port // empty')"
+if [ -z "${APP_PORT}" ]; then
+    bashio::log.warning "Could not read the assigned ingress port from Supervisor — falling back to 8099."
+    APP_PORT=8099
+fi
 MASS_PORT="$(bashio::config 'mass_port')"
 MASS_USERNAME="$(bashio::config 'mass_username')"
 MASS_PASSWORD="$(bashio::config 'mass_password')"
@@ -52,7 +68,7 @@ MASS_TOKEN="$(bashio::config 'mass_token')"
     echo "# Edit values in the add-on's Configuration tab, not this file directly."
     echo ""
     echo "APP_IP=${APP_IP}"
-    echo "APP_PORT=3000"
+    echo "APP_PORT=${APP_PORT}"
     echo ""
     echo "MASS_IP=${MASS_IP}"
     echo "MASS_PORT=${MASS_PORT}"
@@ -64,34 +80,39 @@ MASS_TOKEN="$(bashio::config 'mass_token')"
     echo "TRUST_PROXY=true"
 } > "${ENV_FILE}"
 
-# Persist auto-detected address(es) back into this add-on's own Configuration
-# tab so they show up filled in next time instead of blank. The Supervisor
-# options endpoint REPLACES the whole options object rather than merging
-# (POST /addons/self/options -> app.options = body["options"], no merge) —
-# so every known field is resent here, not just app_ip/mass_ip, to avoid
+# Persist auto-detected address(es) AND the current assigned_port back into
+# this add-on's own Configuration tab. The Supervisor options endpoint
+# REPLACES the whole options object rather than merging (POST
+# /addons/self/options -> app.options = body["options"], no merge) — so
+# every known field is resent here, not just the ones that changed, to avoid
 # wiping out mass_port/mass_token/mass_username/mass_password. Best-effort:
 # a failure here doesn't stop boot, since .env above is already written from
-# the resolved values either way. Self-limiting: once persisted, app_ip/
-# mass_ip are no longer blank on the next boot, so this block stops firing.
-if [ "${APP_IP_AUTODETECTED}" = true ] || [ "${MASS_IP_AUTODETECTED}" = true ]; then
-    PATCH_BODY="$(jq -n \
-        --arg app_ip "${APP_IP}" \
-        --arg mass_ip "${MASS_IP}" \
-        --argjson mass_port "${MASS_PORT:-8095}" \
-        --arg mass_username "${MASS_USERNAME}" \
-        --arg mass_password "${MASS_PASSWORD}" \
-		--arg mass_token "${MASS_TOKEN}" \
-        '{options: {app_ip: $app_ip, mass_ip: $mass_ip, mass_port: $mass_port, mass_username: $mass_username, mass_password: $mass_password, mass_token: $mass_token}}')"
+# the resolved values either way.
+#
+# Unlike app_ip/mass_ip (which only get written back once, while blank),
+# assigned_app_port is stamped on EVERY boot regardless of what's currently
+# there — it's not a user-editable value, so any manual edit to it in the
+# Configuration tab gets overwritten back to the real Supervisor-assigned
+# port on the next restart. That's what makes it effectively read-only,
+# since the Supervisor schema has no native read-only field type.
+PATCH_BODY="$(jq -n \
+    --arg app_ip "${APP_IP}" \
+    --arg mass_ip "${MASS_IP}" \
+    --argjson mass_port "${MASS_PORT:-8095}" \
+    --arg mass_username "${MASS_USERNAME}" \
+    --arg mass_password "${MASS_PASSWORD}" \
+    --arg mass_token "${MASS_TOKEN}" \
+    --argjson assigned_app_port "${APP_PORT:-0}" \
+    '{options: {app_ip: $app_ip, mass_ip: $mass_ip, mass_port: $mass_port, mass_username: $mass_username, mass_password: $mass_password, mass_token: $mass_token, assigned_app_port: $assigned_app_port}}')"
 
-    if curl -sf -X POST \
-        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
-        -H "Content-Type: application/json" \
-        -d "${PATCH_BODY}" \
-        http://supervisor/addons/self/options >/dev/null 2>&1; then
-        bashio::log.info "Saved auto-detected address(es) to the Configuration tab."
-    else
-        bashio::log.warning "Could not save auto-detected address(es) back to Configuration — will re-detect next boot."
-    fi
+if curl -sf -X POST \
+    -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "${PATCH_BODY}" \
+    http://supervisor/addons/self/options >/dev/null 2>&1; then
+    bashio::log.info "Saved current address(es) and assigned port (${APP_PORT}) to the Configuration tab."
+else
+    bashio::log.warning "Could not save address(es)/assigned port back to Configuration — will retry next boot."
 fi
 
 export TZ

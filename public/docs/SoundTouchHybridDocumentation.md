@@ -1,4 +1,4 @@
-# <img src="../images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid v4
+# <img src="../images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid v4.1
 
 **A free, open-source private SoundTouch cloud streaming service and application replacing the deactivated Bose Cloud Service to maintain 100% of the smart speaker functionality of SoundTouch Speakers and Wireless Link. Physical Presets Included!**
 
@@ -36,7 +36,7 @@ The SoundTouch experience is defined by three distinct interaction modes, all of
 
 - **The Headless Experience** — walking into a room and pressing "Preset 1" on a physical speaker to start music immediately, with no app or mobile device required.
 - **The Remote Experience** — using a phone, tablet, or computer purely as a controller to browse libraries, manage queues, favorite tracks, and group speakers, without the controller acting as the audio source.
-- **The Administration Experience** — retaining control over hardware settings such as preset assignments, speaker naming, bass EQ, power saving modes, and stereo pairing, plus application-level settings like scheduled plays, auto-resume presets, and other automation options.
+- **The Administration Experience** — retaining control over hardware settings such as preset assignments, speaker naming, bass EQ, power saving modes, and stereo pairing, plus application-level settings like scheduling a speaker to play or power off at a set time, a Power Off Timer to auto-off a set number of minutes after playing, auto-resume presets, and other automation options.
 
 **The Solution.** A new architecture necessitated a self-hosted "Private Cloud" to replace the missing logic and authentication handshakes of the Bose Cloud, alongside a new Integrated SoundTouch Hybrid app hosted on the local network with a browser and mobile UI. This shifts the "brain" from remote Bose servers back to the local network, restoring the SoundTouch experience through four architectural principles:
 
@@ -60,7 +60,7 @@ This solution is a "Hybrid" because it merges native Bose hardware capabilities 
 
 **Two deployment topologies, one backend.** The system runs identically whether deployed as a standalone Docker container (NAS or PC) or as a native Home Assistant Supervisor add-on — same Node.js backend, same Hybrid Bridge, same cloud emulation. The add-on path exists for users who already run Home Assistant as their home automation hub and want SoundTouch Hybrid managed through the same Supervisor lifecycle (install, update, logs) as their other add-ons, rather than a separate Docker Compose stack. Section §3.14 describes how the two topologies affect restarting Music Assistant.
 
-![SoundTouch Hybrid Architecture Diagram](../../Docs/ArchitectureIntro.png)
+![SoundTouch Hybrid Architecture Diagram](ArchitectureIntro.png)
 
 ---
 
@@ -113,7 +113,7 @@ This is an extension of the same LOCAL_INTERNET_RADIO backdoor mechanism in §3.
 
 **The Feature.** Speakers are found automatically via a network scan on first boot and every subsequent reboot — no manual IP entry, no speaker list to maintain by hand. A static IP is recommended for each speaker, but not required.
 
-**Handling IP Changes.** Every persisted reference to "which speaker" in this system — preset assignments, stereo pairs, scheduled plays — stores a speaker's IP address alongside its `deviceId` (a stable identifier baked into the hardware, captured the same time the IP is). If a speaker's IP address changes — a DHCP lease renewal, a router reboot — the network scan that runs on every boot re-matches speakers by `deviceId` and corrects any stored IP that no longer points at the right hardware, for the speaker list itself and for every preset assignment and stereo pair that references it.
+**Handling IP Changes.** Every persisted reference to "which speaker" in this system — preset assignments, stereo pairs, scheduled events, power off timers — stores a speaker's IP address alongside its `deviceId` (a stable identifier baked into the hardware, captured the same time the IP is). If a speaker's IP address changes — a DHCP lease renewal, a router reboot — the network scan that runs on every boot re-matches speakers by `deviceId` and corrects any stored IP that no longer points at the right hardware, for the speaker list itself and for every preset assignment and stereo pair that references it.
 
 If a speaker's IP address changes while the app is already running, mid-session, that change won't be caught right away — a system restart is required, and once that happens, the speaker is found and corrected automatically. This also requires a `deviceId` to have been successfully captured when the reference was first created, which requires the speaker to have been reachable at that moment.
 
@@ -215,7 +215,7 @@ Because the legacy Bose API often fails silently (returning `200 OK` even when i
 This recovery is automatic out of the box — nothing to configure, nothing to opt into:
 
 - **Every boot** — the Pre-Flight check pushes presets directly whenever the cloud config is already healthy but the presets aren't (skipped when a full injection already ran, since that handshake delivers presets on its own). This alone catches drift on every restart with zero setup.
-- **Cloud handshake recovery** — fires automatically if a handshake completes but presets weren't part of it.
+- **Cloud handshake recovery** — fires automatically if a handshake completes but presets weren't part of it. If a stream was playing when the handshake broke, this path also attempts to restart it after the preset push, by checking MASS's queue for what was still active. 
 
 Two optional extras add coverage beyond boot-time, for users who want them — neither is required for the recovery above to work:
 
@@ -236,3 +236,13 @@ The restart logic tries three paths in order, the first that applies wins:
 3. **HA Supervisor, public API** — used when Music Assistant is a Home Assistant add-on running on a separate machine from this app; requires a long-lived HA access token (`HA_TOKEN`) configured in `.env`.
 
 The logic cascades through all three paths in order; if every path fails, the system assumes Music Assistant is already in a good state and boot continues normally.
+
+### 3.15 Home Assistant Ingress: Dynamic Port Assignment
+
+Early versions of the HA add-on exposed a user-editable **Bose SoundTouch Hybrid Port** option (`app_port`, default `3000`) alongside a static `ingress_port: 3000` in `config.yaml`. Supervisor reads `ingress_port` once, before the container starts, so it has no way to track a runtime option — if a user changed `app_port` to get off 3000 (commonly already claimed by Z-Wave.js on an HA host), the sidebar's **Open Web UI** button broke, because nothing was left listening on the port Supervisor's Ingress proxy still expected. Direct access at `http://<host-ip>:<app_port>/control.html` kept working; only the Ingress button was affected. (Originally reported as issue #150.)
+
+**Fix:** `ingress_port: 0` in `config.yaml` instead of a static guess. Per Supervisor's own add-on config spec, `0` tells Supervisor to dynamically assign a free host port to the add-on. Confirmed directly against Supervisor's source (`supervisor/ingress.py`, `get_dynamic_port()`): the assignment is looked up by the add-on's slug and persisted to disk, not re-rolled — once assigned, the same port is returned every time, across add-on restarts, Supervisor restarts, and full HA host reboots. It only changes if the add-on is uninstalled and reinstalled.
+
+`run.sh` reads the assigned value back via `bashio::app.ingress_port` (which queries `GET /addons/self/info`) and writes it into `.env` as `APP_PORT` — the same variable every other deployment method already uses. Because preset NVRAM injection ([preflight.js:267](../../routes/preflight.js#L267)) and the Ingress proxy both resolve off that one value, there's no separate static/dynamic pair to drift out of sync, and no second listener is needed. If the assigned port ever did change (only possible via uninstall/reinstall), the existing boot-time preflight drift check already re-injects the corrected URL onto speaker NVRAM automatically — no new self-healing logic was needed for this.
+
+Since the port is no longer something a user sets, `app_port` was removed from `config.yaml`'s options/schema entirely and replaced with `assigned_app_port` — a read-only-in-practice field (Supervisor's schema has no native read-only type) that `run.sh` overwrites unconditionally on every boot, regardless of what a user might type into it, so the Configuration tab always displays the real value for reference.

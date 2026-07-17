@@ -13,8 +13,10 @@ When you start this add-on for the first time (or after any restart), the **Info
 The add-on is fully up and ready when the log reaches its last line:
 
 ```
-➡️  Web UI accessible at: http://<your-HA-host-IP>:3000/control.html
+➡️  Web UI accessible at: http://<your-HA-host-IP>:<port>/control.html
 ```
+(port shown is the free port Home Assistant automatically assigned this add-on — also visible, read-only, in the **Assigned App Port** Configuration field)
+
 Once you see that line, click **Open Web UI** (or the link it prints) — the app is ready to use.
 
 
@@ -28,6 +30,8 @@ Once you see that line, click **Open Web UI** (or the link it prints) — the ap
 - **Physical Remote Control Hijacks** —  Pause/Play, Next/Prev controls work again for DLNA and Pause/Play for AirPlay. Augmenting the remaining original still functional volume, power, and presets controls,
 - **Real-Time Preset Self-Healing** — if a speaker's presets get wiped (a known legacy-firmware degraded WiFi failure mode), they're detected and re-injected automatically, no restart required.
 - **DLNA and AirPlay, Both Fully Supported** — side by side, your choice per speaker.
+
+For the complete feature list see **Application Key Features** in the [main README](https://github.com/TJGigs/Bose-SoundTouch-Hybrid#readme).
 
 ## Getting Help
 

@@ -1,5 +1,5 @@
 name: "Bose SoundTouch Hybrid"
-version: "v4"
+version: "v4.1"
 slug: "bose_soundtouch_hybrid"
 description: "An open-source private SoundTouch cloud streaming service and application replacing the deactivated Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch Speakers and Wireless Link. Physical Presets Included!"
 url: "https://github.com/TJGigs/Bose-SoundTouch-Hybrid"
@@ -8,9 +8,7 @@ arch:
   - amd64
   - armv7
 
-# Published by the build-addon job in .github/workflows/docker-publish.yml —
-# {arch} is substituted by Supervisor with the host's arch (must match one of
-# the arch: entries above). Supervisor pulls the tag matching `version:` below,
+# Supervisor pulls the tag matching `version:`
 # so a version bump here only takes effect once CI has published that tag.
 image: "ghcr.io/tjgigs/{arch}-addon-bose-soundtouch-hybrid"
 
@@ -18,7 +16,7 @@ startup: application
 boot: auto
 init: false
 
-# Required so speakers on the LAN can reach APP_IP:3000  Without host 
+# Required so speakers on the LAN can reach APP_IP:APP_PORT. Without host
 # networking this add-on would only be reachable at Docker's internal
 # bridge IP, which the presets injected onto the speakers' NVRAM cannot resolve.
 host_network: true
@@ -31,7 +29,14 @@ hassio_api: true
 hassio_role: manager
 
 ingress: true
-ingress_port: 3000
+# 0 = ask Supervisor to dynamically assign a free host port (get_dynamic_port()
+# in supervisor/ingress.py) instead of guessing a static number that might
+# already be taken — e.g. Z-Wave.js commonly sits on 3000, which is what
+# issue #150 originally reported. Once assigned, Supervisor persists the port
+# to disk keyed by this add-on's slug and returns that same value forever —
+# across add-on restarts, Supervisor restarts, and full HA reboots. It only
+# changes if the add-on is uninstalled and reinstalled.
+ingress_port: 0
 panel_icon: mdi:speaker-wireless
 
 map:
@@ -59,12 +64,22 @@ options:
   app_ip: ""
   mass_ip: ""
   mass_port: 8095
+  # Overwritten unconditionally by run.sh on every boot with whatever
+  # Supervisor actually assigned — never read as user input. See this
+  # field's description in translations/en.yaml and the ingress_port
+  # comment above for the full explanation.
+  assigned_app_port: 0
 
 schema:
   mass_username: "str?"
   mass_password: "password?"
-  mass_token: "password?"  
+  mass_token: "password?"
   app_ip: "str?"
   mass_ip: "str?"
-  mass_port: port 
+  mass_port: port
+  # int(0,65535), not the "port" type — "port" enforces a minimum of 1, but the
+  # placeholder value before this add-on's first boot (before Supervisor has
+  # ever assigned a real port) is 0, which must still pass validation so
+  # unrelated Configuration saves (MASS credentials, etc.) aren't blocked.
+  assigned_app_port: int(0,65535)
 

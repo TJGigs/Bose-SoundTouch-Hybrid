@@ -12,11 +12,6 @@ configuration:
     description: >-
      Alternative to Music Assistant login username/password. Use one method or the other, not both.
      Auth Token is a pre-issued long-lived access token generated from Music Assistants's settings page.      
-  app_ip:
-    name: "Bose SoundTouch Hybrid IP Address:"
-    description: >-
-      LEAVE BLANK TO AUTO-DETECT. This is the local IP address of the server running Bose SoundTouch Hybrid..
-      Only set this manually if Home Assistant has multiple network interfaces and auto-detect picks one your speakers can't reach.
   mass_ip:
     name: "Music Assistant IP Address:"
     description: >-
@@ -26,3 +21,13 @@ configuration:
     name: "Music Assistant Port:"
     description: >-
       Defaults to 8095 — Only change if you overrode the Music Assistant port.
+  app_ip:
+    name: "Bose SoundTouch Hybrid IP Address:"
+    description: >-
+      LEAVE BLANK TO AUTO-DETECT. This is the local IP address of the server running Bose SoundTouch Hybrid..
+      Only set this manually if Home Assistant has multiple network interfaces and auto-detect picks one your speakers can't reach.
+  assigned_app_port:
+    name: "Bose SoundTouch Hybrid App Port: Auto Assigned By HA (informational only):"
+    description: >-
+      Home Assistant's automatically assigned free port. Enforced permanently until the add-on is uninstalled:
+      Any value typed in is ignored. This display is for information only. Shows 0 until the add-on's first boot, when the real port is assigned.

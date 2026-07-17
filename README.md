@@ -1,4 +1,4 @@
-# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid v4
+# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid v4.1
 
 **A free, open-source private SoundTouch cloud streaming service and application replacing the deactivated Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch Speakers and Wireless Link. Physical Presets Included!**
 
@@ -8,7 +8,13 @@ It runs locally on your network (NAS, PC, or Home Assistant add-on) and intercep
 
 ---
 
-## ⚠️ Upgrading to v4
+## ⚠️ Upgrading to v4.1
+
+* **Application settings are being reinitialized.** Startup detects the old settings schema and backs up your existing `settings.json` to `settings.json.bak`. Re-configure Scheduled Play/Off, Power Off Timers, and other preferences on first boot.
+
+---
+
+## ⚠️ Upgrading to v4.1
 
 * **New `.env` schema.** Startup copies a fresh `.env` template into your directory and backs up your old file. Re-enter your values into the new `.env`.  Don't reuse your old `.env` file 
 * **New [`bose-soundtouch-hybrid.yml`](https://github.com/TJGigs/Bose-SoundTouch-Hybrid/blob/main/bose-soundtouch-hybrid.yml) required.** Download the current version.  Don't reuse an old copy.
@@ -17,7 +23,7 @@ It runs locally on your network (NAS, PC, or Home Assistant add-on) and intercep
 
 ---
 
-## ✨ V4 Enhancements
+## ✨ V4.1 Enhancements
 
 *(Full descriptions of all features below in **Application Key Features**. This is quick "What's new" for existing users.)*
 
@@ -28,7 +34,7 @@ It runs locally on your network (NAS, PC, or Home Assistant add-on) and intercep
 * ✅ Multiple speaker groups with selectable master (#106, #102)
 * ✅ ST10 stereo pairing
 * ✅ Preset Hover Preview — see what's assigned to a preset before pressing it
-* ✅ Scheduled power-on/play, plus scheduled maintenance (nightly audits/restarts)
+* ✅ Scheduled Play and Power Off at set times, plus a Power Off Timer to auto-off after playing, and scheduled maintenance (nightly audits/restarts)
 * ✅ Optional Admin PIN lock for Tools/Admin pages (#107)
 * ✅ Configurable search tabs sourced from your Music Assistant providers
 * ✅ Podcasts & audiobooks in search and library
@@ -87,7 +93,7 @@ It runs locally on your network (NAS, PC, or Home Assistant add-on) and intercep
 
 ### 🛠️ Extended Admin & Automation Tools
 
-* **Scheduled Automation:** Set speakers or groups to power on and start playback at a scheduled time, and optionally run nightly speaker audits and/or scheduled app restarts — with or without a full reboot — all hands-off.
+* **Scheduled Automation:** Set speakers or groups to power on and start playback at a scheduled time, schedule them to power off at a set time, or arm a Power Off Timer to automatically power off a set number of minutes after they turn on — plus optionally run nightly speaker audits and/or scheduled app restarts — with or without a full reboot — all hands-off.
 
 * **Optional Admin PIN Lock:** Restrict the Tools and Admin pages behind a PIN — useful on a shared household network where you don't want everyone able to change system settings.
 
@@ -185,7 +191,7 @@ It runs locally on your network (NAS, PC, or Home Assistant add-on) and intercep
 
 ***You must verify your SoundTouch speakers and streaming providers are fully working inside of Music Assistant before installing SoundTouch Hybrid.***
 
-Install Music Assistant (MASS): ***version 2.9.8 or later is required***
+Install Music Assistant (MASS): ***version 2.9.9 or later is required***
 
 1. **For installation instructions and troubleshooting, use Music Assistant Help** — setup, providers, speaker testing, playback issues, etc.
    * See [MASS GitHub](https://github.com/music-assistant/server) and [MASS Website](https://www.music-assistant.io/installation)
@@ -253,16 +259,17 @@ Install Music Assistant (MASS): ***version 2.9.8 or later is required***
 
 ### Home Assistant Add-on
 
-1. **Before you install:** Music Assistant must already be installed and fully working — see "Setting up Music Assistant" above.
+**Before you install:** Music Assistant must already be installed and fully working — see "Setting up Music Assistant" above.
 
-2. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add:
+1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add:
    `https://github.com/TJGigs/Bose-SoundTouch-Hybrid`
-3. Find **Bose SoundTouch Hybrid** in the store and click **Install**.
-4. Open the **Configuration** tab before starting it:
-   * **App IP / Music Assistant IP** — leave both blank if Music Assistant runs on this same HA instance; the add-on auto-detects the host address. Only set **Music Assistant IP** if MASS runs elsewhere.
-   * **Music Assistant Auth Token** — generate one from MASS's own Settings page.
-   * **Music Assistant Username / Password** — an alternative to the token above. Both methods are fully supported; provide one or the other, not both.
-5. Start the add-on. On first boot it scans your network and finds your SoundTouch speakers automatically.
-6. Open the add-on's panel from the Home Assistant sidebar to use the web app. It's also reachable directly at `http://<your-HA-host-IP>:3000/control.html`.
-7. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:3000/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
+2. Find **Bose SoundTouch Hybrid** in the store and click **Install**.
+3. Open the **Configuration** tab before starting it:
+   * **Music Assistant Username / Password** Your MASS Username and Password. Both are required if not using a Music Assistant Auth Token.
+   * **Music Assistant Auth Token** An alternative to the Username / Password. Both methods are fully supported; provide one or the other, not both.
+   * **App IP / Music Assistant IP** — leave both blank, The add-on auto-detects the host address. Only set **Music Assistant IP** if MASS runs on a separate machine or VM.
+   * **Assigned App Port** — Home Assistant automatically assigns this add-on a free port; it's shown here read-only, for reference only. Any value typed into this field is ignored. There's nothing to configure and nothing that can conflict with another port on your Home Assistant host.
+4. Start the add-on. On first boot it scans your network and finds your SoundTouch speakers automatically.
+5. Open the add-on's panel from the Home Assistant sidebar and use the **Open Web UI** button, or go directly to `http://<your-HA-host-IP>:<port>/control.html`, using the port shown in **Assigned App Port**.
+6. **Install the Web App:** On your phone, open `http://<YOUR_SERVER_IP>:<port>/control.html` and tap **"Add to Home Screen"** to add the SoundTouch Hybrid icon and link to your home screen.
 
