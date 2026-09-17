@@ -10,23 +10,40 @@ const { pushPresetsToSpeaker, speakerHasHybridPresets } = require('./utils');
 async function auditSpeakerClock(ip, name) {
     try {
         const now = new Date();
-        const utcUnixTime = Math.floor(now.getTime() / 1000); 
-        const offsetMinutes = -now.getTimezoneOffset(); 
+        const utcUnixTime = Math.floor(now.getTime() / 1000);
+        const offsetMinutes = -now.getTimezoneOffset();
         const offsetSeconds = offsetMinutes * 60;
-        const localUnixTime = utcUnixTime + offsetSeconds; 
+        const localUnixTime = utcUnixTime + offsetSeconds;
 
         const checkRes = await axios.get(`http://${ip}:8090/clockTime`, { timeout: 1500 });
         const parser = new xml2js.Parser({ explicitArray: false });
         const data = await parser.parseStringPromise(checkRes.data);
-        
+
         // Extract the attribute from the '$' object
         const currentUtc = parseInt(data.clockTime?.$?.utcTime || "0");
-        const timeDrift = Math.abs(currentUtc - utcUnixTime);
+        const utcDrift = Math.abs(currentUtc - utcUnixTime);
 
-        // Only push an update if the clock has drifted by > 120 seconds.
-        if (timeDrift > 120) {
-            console.log(`[Pre-Flight] 🕒 Adjusting clock on ${name} (Drift: ${timeDrift}s)...`);
-            
+        // utcDrift alone can't see a stale/zeroed local offset on a speaker whose
+        // UTC clock is otherwise accurate (e.g. offset reset by the native
+        // SETUP_LEAVE step inside injectGabboLanguageFix below). Reconstruct the
+        // speaker's *applied* local instant from its own <localTime> block —
+        // month is 0-indexed (struct tm), matching the dayOfWeek convention —
+        // and compare it the same way localUnixTime is derived above.
+        const lt = data.clockTime?.localTime?.$ || {};
+        const speakerLocalUnixTime = Date.UTC(
+            parseInt(lt.year || "0"),
+            parseInt(lt.month || "0"),
+            parseInt(lt.dayOfMonth || "1"),
+            parseInt(lt.hour || "0"),
+            parseInt(lt.minute || "0"),
+            parseInt(lt.second || "0")
+        ) / 1000;
+        const localDrift = Math.abs(speakerLocalUnixTime - localUnixTime);
+
+        // Push an update if either the UTC clock or the applied local offset has drifted.
+        if (utcDrift > 120 || localDrift > 120) {
+            console.log(`[Pre-Flight] 🕒 Adjusting clock on ${name} (UTC drift: ${utcDrift}s, Local offset drift: ${localDrift}s)...`);
+
             const timeXml = `
                 <clockTime>
                     <state>SYNC_VALID</state>
@@ -35,15 +52,39 @@ async function auditSpeakerClock(ip, name) {
                     <offset>${offsetSeconds}</offset>
                 </clockTime>
             `.trim();
-            
+
             await axios.post(`http://${ip}:8090/clockTime`, timeXml, {
                 headers: { 'Content-Type': 'application/xml' },
                 timeout: 2000
             });
+            return true;
         }
+        return false;
     } catch (e) {
         console.error(`[Pre-Flight] ⚠️ Clock audit failed for ${name}: ${e.message}`);
+        return false;
     }
+}
+
+// FLEET-WIDE CLOCK AUDIT — runs once, standalone, after every configured speaker is
+// confirmed back online (called from server.js after the post-reboot "Great Wait").
+// Deliberately decoupled from the per-speaker Route A/B/C flow above: a speaker that
+// just went through NVRAM injection+reboot or the Gabbo language fix only has a
+// trustworthy clock to check *after* those operations and its reboot have finished,
+// not before. Quiet unless a speaker actually needed correction.
+async function auditAllSpeakerClocks(speakers) {
+    console.log(`\n----------------------------------------------------------------------------`);
+    console.log(`[Boot] Auditing speaker clocks...`);
+    console.log(`----------------------------------------------------------------------------`);
+
+    const results = await Promise.all(
+        speakers.map(s => auditSpeakerClock(s.ip, s.name))
+    );
+
+    const correctedCount = results.filter(Boolean).length;
+    console.log(correctedCount === 0
+        ? `[Boot] ✅ All speaker clocks verified.`
+        : `[Boot] ✅ Clock audit complete (${correctedCount} speaker(s) corrected).`);
 }
 
 // 1. THE NATIVE INJECTOR (Universal Timing Sequence)
@@ -319,7 +360,16 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
             const currentMargeUrl = extractString(info.margeURL || info.margeServerUrl);
             const currentMargeId = extractString(info.margeAccountUUID);
             
-            // Sync internal clock to prevent TLS/Cloud rejections
+            // Sync internal clock to prevent TLS/Cloud rejections.
+            // NOTE: The fleet-wide auditAllSpeakerClocks() pass (server.js, after the
+            // post-reboot "Great Wait") now covers this more reliably — it runs after
+            // NVRAM injection/Gabbo/reboot instead of before, so it can't be undone by
+            // this same boot's own setup actions. This early call is likely redundant
+            // now, but it's tangled up in the factory-reset flow that took a lot of
+            // trial and error to get right (see injectPort17000Commands /
+            // injectGabboLanguageFix above), and its removal hasn't been tested. Leave
+            // it in place — candidate for removal in a later pass once the fleet-wide
+            // audit has been confirmed to fully cover the factory-reset path too.
             await auditSpeakerClock(speaker.ip, speaker.name);
 
             // ==========================================================
@@ -449,4 +499,4 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
     return { success: true, rebootedIps };
 }
 
-module.exports = { runSetup };
+module.exports = { runSetup, auditAllSpeakerClocks };

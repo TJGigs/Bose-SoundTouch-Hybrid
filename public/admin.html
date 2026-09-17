@@ -71,6 +71,11 @@
   // `selected` is the raw stored value (undefined when unset), not a resolved default,
   // so an unconfigured speaker correctly shows "No Limit" rather than looking identical
   // to an explicit bound.
+  //
+  // Solo-speaker only: never applies to a zone master/slave (control.html's isGrouped
+  // check bypasses it entirely — group delta math would desync against a per-speaker
+  // cap) or to a stereo pair's RIGHT half (below, its fields are hidden — RIGHT has no
+  // independent volume, it just inherits whatever LEFT's slider does).
   function minVolLimitOptions(selected) {
       let html = `<option value=""${selected == null ? ' selected' : ''}>No Limit</option>`;
       for (const v of [10, 20, 30]) {
@@ -167,7 +172,10 @@
           </div>
 
           <div class="control-row" style="align-items:flex-start; flex-direction:column; gap:5px;">
-            <label>Volume Slider Limits</label>
+            <label>Speaker UI${settings.hardwareVolumeLimits ? '/HW' : ''} Volume Limits (Solo)</label>
+            ${d.stereoRole === 'RIGHT' ? `
+            <span style="font-size:0.85em; color:var(--text); opacity:0.7;">L+R Pair — inherits Left speaker's limit. Never independently addressable.</span>
+            ` : `
             <div style="display:flex; gap:15px; width:100%;">
                 <div style="display:flex; align-items:center; gap:6px;">
                     <label style="font-size:0.85em; color:var(--text); opacity:0.8;">Min</label>
@@ -178,6 +186,7 @@
                     <select id="maxvol-${d.ip}" style="width:100px; background:var(--bg-color); color:var(--text); border:1px solid #777; padding:4px; border-radius:3px;" onchange="saveVolumeLimit('${d.ip}')">${maxVolLimitOptions(volLimit.max)}</select>
                 </div>
             </div>
+            `}
           </div>
 
           <div class="control-row">

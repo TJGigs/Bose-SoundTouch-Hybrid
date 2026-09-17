@@ -90,19 +90,20 @@
 							<label class="pref-label"><input type="checkbox" id="pref_darkMode" class="pref-checkbox" onchange="toggleThemeFromPref(this)"> 🌓 Dark Mode</label>
 							<label class="pref-label"><input type="checkbox" id="pref_mobileAutoSortSpeakers" class="pref-checkbox"> Auto-Sort Active Speakers (Mobile Only)</label>
 							<label class="pref-label"><input type="checkbox" id="pref_autoResume" class="pref-checkbox"> Auto-Resume Presets on Power On</label>
+							<label class="pref-label"><input type="checkbox" id="pref_autoSync" class="pref-checkbox"> Auto-Sync Slave Volume on Grouping</label>
 						</div>
 
 						<!-- Col 2 -->
 						<div style="display: flex; flex-direction: column; gap: 12px;">
-							<label class="pref-label"><input type="checkbox" id="pref_autoSync" class="pref-checkbox"> Auto-Sync Slave Volume on Grouping</label>
 							<label class="pref-label"><input type="checkbox" id="pref_autoRestart" class="pref-checkbox"> Auto-Reload DLNA & AirPlay on Connection Error</label>
 							<label id="lbl_presetPreview" class="pref-label" style="opacity: 0.4; pointer-events: none;"><input type="checkbox" id="pref_presetPreview" class="pref-checkbox" disabled> Show Preset Preview (Desktop Only)</label>
 							<label id="lbl_descriptivePresets" class="pref-label" style="opacity: 0.4; pointer-events: none;"><input type="checkbox" id="pref_descriptivePresets" class="pref-checkbox" disabled onchange="handleDescriptivePresetsToggle()"> Enable Descriptive Presets (Desktop & Mobile)</label>
+							<label id="lbl_doubleTapPresets" class="pref-label" style="opacity: 0.4; pointer-events: none;"><input type="checkbox" id="pref_doubleTapPresets" class="pref-checkbox" disabled> Enable Extended Presets (Double Tap)</label>
 						</div>
 
 						<!-- Col 3: scheduled automations -->
 						<div style="display: flex; flex-direction: column; gap: 12px;">
-							<label id="lbl_doubleTapPresets" class="pref-label" style="opacity: 0.4; pointer-events: none;"><input type="checkbox" id="pref_doubleTapPresets" class="pref-checkbox" disabled> Enable Extended Presets (Double Tap)</label>
+							<label class="pref-label"><input type="checkbox" id="pref_hardwareVolumeLimits" class="pref-checkbox"> Enable HW Volume Limits (Solo Speakers)</label>
 							<label class="pref-label" style="display: flex; align-items: center; gap: 8px;">
 								<input type="checkbox" id="pref_scheduledSpeakerAudit" class="pref-checkbox" onchange="handleAuditToggle()">
 								Enable Speaker Audit at
@@ -858,6 +859,7 @@
 		            document.getElementById('pref_autoResume').checked = fullSettingsPayload.autoResumePreset === true;
 		            document.getElementById('pref_autoRestart').checked = fullSettingsPayload.autoRestartMass === true;
 		            document.getElementById('pref_autoSync').checked = fullSettingsPayload.autoSyncVolume === true;
+		            document.getElementById('pref_hardwareVolumeLimits').checked = fullSettingsPayload.hardwareVolumeLimits === true;
 		            document.getElementById('pref_mobileAutoSortSpeakers').checked = fullSettingsPayload.mobileAutoSortSpeakers === true;
 		            document.getElementById('pref_scheduledSpeakerAudit').checked = fullSettingsPayload.scheduledSpeakerAudit === true;
 		            document.getElementById('pref_scheduledRestart').checked = fullSettingsPayload.scheduledRestart === true;
@@ -1023,6 +1025,7 @@
 		    fullSettingsPayload.autoResumePreset = document.getElementById('pref_autoResume').checked;
 		    fullSettingsPayload.autoRestartMass = document.getElementById('pref_autoRestart').checked;
 		    fullSettingsPayload.autoSyncVolume = document.getElementById('pref_autoSync').checked;
+		    fullSettingsPayload.hardwareVolumeLimits = document.getElementById('pref_hardwareVolumeLimits').checked;
 		    fullSettingsPayload.mobileAutoSortSpeakers = document.getElementById('pref_mobileAutoSortSpeakers').checked;
 		    fullSettingsPayload.scheduledSpeakerAudit  = document.getElementById('pref_scheduledSpeakerAudit').checked;
 		    fullSettingsPayload.scheduledAuditHour    = parseInt(document.getElementById('pref_scheduledAuditHour').value, 10);

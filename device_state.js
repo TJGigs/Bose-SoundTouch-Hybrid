@@ -168,6 +168,77 @@ function getAutoResumeSetting() {
     return false; //default fallback value is false
 }
 
+// --- HARDWARE VOLUME CAP ENFORCEMENT (opt-in, settings.json: hardwareVolumeLimits) ---
+// Hardware-level counterpart to the UI-only slider clamp (routes/controller.js,
+// discussion #186/#187, admin.html). Reacts to the same volumeUpdated WS event that
+// already updates NATIVE_CACHE.volume — physical button, remote, AirPlay, MASS, or
+// any other source, not just this app's own UI slider.
+//
+// Never applies to a zone (master or slave, checked via the caller's `inGroup`) —
+// same reasoning as control.html:525-529: the group's delta math on the GRP slider
+// moves every member by the same amount, and a per-speaker correction here would
+// desync that exactly the way a per-speaker slider cap would.
+//
+// A stereo pair's RIGHT half has no cap of its own — it defers to LEFT's, resolved
+// live from stereo_pairs.json every call (same fresh-read reasoning as
+// controller.js:23-25: pairing changes at runtime via the Tools page, no reboot of
+// this app required). The correction is still POSTed to the reporting IP — only the
+// limit values are borrowed from LEFT.
+let volumeCapErrorLogged = false;
+function getVolumeCapSettings() {
+    try {
+        const settingsFile = path.join(process.cwd(), 'config', 'settings.json');
+        if (fs.existsSync(settingsFile)) {
+            const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+            volumeCapErrorLogged = false;
+            return {
+                enabled: settings.hardwareVolumeLimits === true,
+                limits: Array.isArray(settings.volumeLimits) ? settings.volumeLimits : []
+            };
+        }
+    } catch (e) {
+        if (!volumeCapErrorLogged) {
+            console.log(`[DeviceState] ⚠️ Could not read settings.json for hardware volume cap (${e.message}).`);
+            volumeCapErrorLogged = true;
+        }
+    }
+    return { enabled: false, limits: [] };
+}
+
+function resolveVolumeCapIp(ip) {
+    try {
+        const pairsFile = path.join(process.cwd(), 'config', 'stereo_pairs.json');
+        if (fs.existsSync(pairsFile)) {
+            const pairs = JSON.parse(fs.readFileSync(pairsFile, 'utf8'));
+            const pair = pairs.find(p => p.rightIp === ip);
+            if (pair) return pair.leftIp;
+        }
+    } catch (e) { /* fall through to solo ip */ }
+    return ip;
+}
+
+async function enforceHardwareVolumeCap(ip, currentVolume, inGroup) {
+    if (inGroup) return; // Never enforced on a zone master or slave
+
+    const { enabled, limits } = getVolumeCapSettings();
+    if (!enabled) return;
+
+    const capIp = resolveVolumeCapIp(ip); // RIGHT resolves to its paired LEFT; everyone else is a no-op
+    const limit = limits.find(v => v.speakerIp === capIp);
+    if (!limit) return;
+
+    let target = null;
+    if (limit.max != null && currentVolume > limit.max) target = limit.max;
+    else if (limit.min != null && currentVolume < limit.min) target = limit.min;
+    if (target == null) return;
+
+    console.log(`[DeviceState] 🔊 Hardware volume cap: ${ip} reported ${currentVolume}, correcting to ${target} (limit from ${capIp}).`);
+    await axios.post(`http://${ip}:8090/volume`, `<volume>${target}</volume>`, {
+        headers: { 'Content-Type': 'application/xml' },
+        timeout: 2000
+    });
+}
+
 
 function cleanContentItem(raw, playStatus) {
     if (!raw) return { source: "Ready" };
@@ -1041,6 +1112,8 @@ async function processSettledState(ip) {
     LAST_VALID_STATE[ip] = result;
     FINAL_STATE[ip] = result;
     OFFLINE_COUNTS[ip] = 0;
+
+    enforceHardwareVolumeCap(ip, cache.volume, inGroup).catch(() => {});
 
 }
 catch (error) {

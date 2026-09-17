@@ -242,7 +242,13 @@ async function auditSpeakerConfig(baseUrl, reqConfig, massPlayers, speaker) {
         "play_media_overrides_group": true,
         "preferred_output_protocol": activeId,
         [`${activeId}||protocol||enabled`]: true,
-        ...(sendspinId ? { [`${sendspinId}||protocol||enabled`]: false } : {})
+        ...(sendspinId ? { [`${sendspinId}||protocol||enabled`]: false } : {}),
+        // flow_mode/replace_pause_with_stop only exist on the DLNA protocol object (not AirPlay),
+        // so these pin regardless of which protocol is currently preferred.
+        ...(dlnaId ? {
+            [`${dlnaId}||protocol||flow_mode`]: true,
+            [`${dlnaId}||protocol||replace_pause_with_stop`]: false
+        } : {})
     };
 
     const batchPayload = {};

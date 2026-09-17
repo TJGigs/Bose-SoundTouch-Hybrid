@@ -1,10 +1,10 @@
 // ============================================================================
 // PHASE 1: IMPORTS & CONSTANTS
 // ============================================================================
-const CURRENT_VERSION = "v4.3";
+const CURRENT_VERSION = "v4.4";
 const ENV_SCHEMA_VERSION = "v4.2";
-const SETTINGS_SCHEMA_VERSION = "v4.2";
-const minReq = [2, 10, 1]; //MASS VERSION
+const SETTINGS_SCHEMA_VERSION = "v4.4";
+const minReq = [2, 10, 3]; //MASS VERSION
 let UPDATE_CACHED_DATA = { updateAvailable: false, current: CURRENT_VERSION };
 const express = require('express');
 const fs = require('fs');
@@ -167,6 +167,7 @@ const DEFAULT_SETTINGS = {
     autoResumePreset: false,
     autoRestartMass: false,
     autoSyncVolume: false,
+    hardwareVolumeLimits: false,
     mobileAutoSortSpeakers: true,
     scheduledSpeakerAudit: false,
     scheduledAuditHour: 2,
@@ -559,6 +560,13 @@ if (!isReady) {
             console.log(`✅ ALL SPEAKER REBOOTS COMPLETE`);
             console.log(`============================================================================\n`);
         }
+
+        // STEP 3.5: Fleet-Wide Clock Audit
+        // Runs standalone, after every configured speaker is confirmed back online
+        // (including any that were just NVRAM-injected/rebooted or Gabbo-fixed above),
+        // so a factory reset or setup-state fix earlier in this same boot can't leave
+        // a speaker's clock wrong until the next restart.
+        await preflight.auditAllSpeakerClocks(SPEAKERS);
 
         // STEP 4: Establish Territory (WebSockets)
         // All configured speakers get a WebSocket connection loop, including any that were
