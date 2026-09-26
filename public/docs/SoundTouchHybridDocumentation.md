@@ -1,4 +1,4 @@
-# <img src="../images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid v4.2
+# <img src="../images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid v4.5
 
 **A free, open-source private SoundTouch cloud streaming service and application replacing the deactivated Bose Cloud Service to maintain 100% of the smart speaker functionality of SoundTouch Speakers and Wireless Link. Physical Presets Included!**
 
@@ -12,7 +12,7 @@ It runs locally on the user's network (NAS, PC, or Home Assistant add-on) and in
 
 1. Introduction & Vision — the Bose Cloud's end-of-life and the goal to preserve the native SoundTouch experience
 2. System Architecture — Cloud Emulation, Music Assistant, Hybrid Bridge, Unified Web App, Standalone Docker and Home Assistant add-on
-3. Technical Constraints & Adaptations — solutions behind cloud emulation, presets, speaker detection, hardware grouping, stereo pairing, self-healing, preset recovery, and protocol tradeoffs
+3. Technical Constraints & Adaptations — solutions behind cloud emulation, presets, speaker detection, hardware grouping, stereo pairing, self-healing, preset recovery, speaker clock/timezone, and protocol tradeoffs
 
 ---
 
@@ -288,3 +288,11 @@ Failure responses:
 | Entry exists, but playback itself failed | `500` | `Failed to trigger playback — check the SoundTouch Hybrid server logs.` |
 
 `triggerOnDemand()` (`routes/utils.js`) checks whether the speaker is known and whether it has an On-Demand entry separately, so those two cases return distinct errors instead of an identical one.
+
+### 3.17 Speaker Clock & Timezone Restoration
+
+**The Problem.** SoundTouch speakers have no battery-backed clock. UTC time comes from the network (NTP), but the *timezone* was set by the Bose app during setup — a factory-reset speaker loses it and displays UTC. The obvious endpoint, `/clockTime`, is effectively read-only: the firmware rejects every write with `400 CLIENT_XML_ERROR 1019`.
+
+**The Fix.** The timezone is stored as an IANA name (e.g. `America/Los_Angeles`) in the speaker's clock display settings, and is written the same way the original Bose app did it: `POST /clockDisplay` with `clockConfig timezoneInfo`. On every app startup — after Pre-Flight and any speaker reboots have finished, so the write never lands inside the ordered factory-reset setup sequence — `auditAllSpeakerClocks()` ([routes/preflight.js](../../routes/preflight.js)) compares each speaker's `timezoneInfo` against the container's `TZ` and corrects any mismatch. The speaker's own 12h/24h format, clock on/off, and brightness are left untouched. If `TZ` isn't set (UTC fallback), speakers are left alone, so a timezone configured by the Bose app is never overwritten. The setting persists across speaker reboots.
+
+**Hardware limitation — time after a power cut.** After losing power, the speaker's clock resets and the display stays blank until an NTP time server answers. The firmware's server list starts with Bose's own time servers (`0.bose.pool.ntp.org`, `1.bose.pool.ntp.org`), which are unreliable since the cloud shutdown, so sync can take anywhere from a few minutes to much longer. The time itself can't be set through the network API. Optional workaround: a DNS override on the router pointing `0.bose.pool.ntp.org` and `1.bose.pool.ntp.org` at a working time server (or the router itself).

@@ -7,61 +7,45 @@ const net = require('net');
 const WebSocket = require('ws');
 const { pushPresetsToSpeaker, speakerHasHybridPresets } = require('./utils');
 
+// TIMEZONE AUDIT (issue #189)
+// Speaker UTC is NTP-synced by the firmware itself; what a factory reset loses is the
+// timezone. That lives in ClockDisplay.xml (clockConfig timezoneInfo, an IANA name like
+// our TZ) and is written via POST /clockDisplay — the original Bose app's mechanism.
+// POST /clockTime rejects every payload with 400 CLIENT_XML_ERROR 1019, so UTC itself
+// cannot be set over HTTP. Verified on ST20 hardware incl. persistence across reboots
+// (testscripts/test_timezone.js). Preserves the speaker's own userEnable/timeFormat
+// (12h/24h)/brightnessLevel — only timezoneInfo is enforced.
 async function auditSpeakerClock(ip, name) {
-    try {
-        const now = new Date();
-        const utcUnixTime = Math.floor(now.getTime() / 1000);
-        const offsetMinutes = -now.getTimezoneOffset();
-        const offsetSeconds = offsetMinutes * 60;
-        const localUnixTime = utcUnixTime + offsetSeconds;
+    const tz = process.env.TZ;
+    // server.js falls back to TZ='UTC' when the compose file sets none — never
+    // overwrite a speaker's existing (Bose-app-configured) timezone with that fallback.
+    if (!tz || tz === 'UTC') return false;
 
-        const checkRes = await axios.get(`http://${ip}:8090/clockTime`, { timeout: 1500 });
+    try {
+        const checkRes = await axios.get(`http://${ip}:8090/clockDisplay`, { timeout: 1500 });
         const parser = new xml2js.Parser({ explicitArray: false });
         const data = await parser.parseStringPromise(checkRes.data);
+        const cfg = data.clockDisplay?.clockConfig?.$ || {};
 
-        // Extract the attribute from the '$' object
-        const currentUtc = parseInt(data.clockTime?.$?.utcTime || "0");
-        const utcDrift = Math.abs(currentUtc - utcUnixTime);
+        if (cfg.timezoneInfo === tz) return false;
 
-        // utcDrift alone can't see a stale/zeroed local offset on a speaker whose
-        // UTC clock is otherwise accurate (e.g. offset reset by the native
-        // SETUP_LEAVE step inside injectGabboLanguageFix below). Reconstruct the
-        // speaker's *applied* local instant from its own <localTime> block —
-        // month is 0-indexed (struct tm), matching the dayOfWeek convention —
-        // and compare it the same way localUnixTime is derived above.
-        const lt = data.clockTime?.localTime?.$ || {};
-        const speakerLocalUnixTime = Date.UTC(
-            parseInt(lt.year || "0"),
-            parseInt(lt.month || "0"),
-            parseInt(lt.dayOfMonth || "1"),
-            parseInt(lt.hour || "0"),
-            parseInt(lt.minute || "0"),
-            parseInt(lt.second || "0")
-        ) / 1000;
-        const localDrift = Math.abs(speakerLocalUnixTime - localUnixTime);
+        console.log(`[Pre-Flight] 🕒 Setting timezone on ${name}: '${cfg.timezoneInfo || '(none)'}' → '${tz}'...`);
 
-        // Push an update if either the UTC clock or the applied local offset has drifted.
-        if (utcDrift > 120 || localDrift > 120) {
-            console.log(`[Pre-Flight] 🕒 Adjusting clock on ${name} (UTC drift: ${utcDrift}s, Local offset drift: ${localDrift}s)...`);
+        const attrs = [
+            `timezoneInfo="${tz}"`,
+            `userEnable="${cfg.userEnable || 'true'}"`,
+            `timeFormat="${cfg.timeFormat || 'TIME_FORMAT_24HOUR_ID'}"`
+        ];
+        if (cfg.brightnessLevel) attrs.push(`brightnessLevel="${cfg.brightnessLevel}"`);
 
-            const timeXml = `
-                <clockTime>
-                    <state>SYNC_VALID</state>
-                    <utcTime>${utcUnixTime}</utcTime>
-                    <localTime>${localUnixTime}</localTime>
-                    <offset>${offsetSeconds}</offset>
-                </clockTime>
-            `.trim();
-
-            await axios.post(`http://${ip}:8090/clockTime`, timeXml, {
+        await axios.post(`http://${ip}:8090/clockDisplay`,
+            `<clockDisplay><clockConfig ${attrs.join(' ')} /></clockDisplay>`, {
                 headers: { 'Content-Type': 'application/xml' },
                 timeout: 2000
             });
-            return true;
-        }
-        return false;
+        return true;
     } catch (e) {
-        console.error(`[Pre-Flight] ⚠️ Clock audit failed for ${name}: ${e.message}`);
+        console.error(`[Pre-Flight] ⚠️ Timezone audit failed for ${name}: ${e.message}`);
         return false;
     }
 }
@@ -348,7 +332,7 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
             }
 
             // ==========================================================
-            // PHASE 2: STATE ACQUISITION & CLOCK AUDIT
+            // PHASE 2: STATE ACQUISITION
             // ==========================================================
             const res = await axios.get(`http://${speaker.ip}:8090/info`, { timeout: 2000 });
             const data = await parser.parseStringPromise(res.data);
@@ -359,18 +343,13 @@ async function runSetup(forceInjectTarget = null, forceRebootTarget = null) {
             const macAddress = extractString(info.$ && info.$.deviceID) || fallbackId;          
             const currentMargeUrl = extractString(info.margeURL || info.margeServerUrl);
             const currentMargeId = extractString(info.margeAccountUUID);
-            
-            // Sync internal clock to prevent TLS/Cloud rejections.
-            // NOTE: The fleet-wide auditAllSpeakerClocks() pass (server.js, after the
-            // post-reboot "Great Wait") now covers this more reliably — it runs after
-            // NVRAM injection/Gabbo/reboot instead of before, so it can't be undone by
-            // this same boot's own setup actions. This early call is likely redundant
-            // now, but it's tangled up in the factory-reset flow that took a lot of
-            // trial and error to get right (see injectPort17000Commands /
-            // injectGabboLanguageFix above), and its removal hasn't been tested. Leave
-            // it in place — candidate for removal in a later pass once the fleet-wide
-            // audit has been confirmed to fully cover the factory-reset path too.
-            await auditSpeakerClock(speaker.ip, speaker.name);
+
+            // Timezone is NOT audited here. The fleet-wide auditAllSpeakerClocks() pass
+            // (server.js, after the post-reboot "Great Wait") handles it once every
+            // injection/Gabbo fix/reboot below has finished, so no /clockDisplay write
+            // ever lands inside this ordered factory-reset sequence. (The old per-speaker
+            // call here only ever POSTed /clockTime, which always 400'd — removing it
+            // leaves this sequence behaving exactly as it effectively did before.)
 
             // ==========================================================
             // PHASE 2.5: NATIVE SETUP-STATE AUDIT (Language Loop Detection)

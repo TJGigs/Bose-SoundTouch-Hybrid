@@ -1,4 +1,4 @@
-# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid v4.4
+# <img src="public/images/hybrid_icon.png" width="30"> Bose SoundTouch Hybrid v4.5
 
 **A free, open-source private SoundTouch cloud streaming service and application replacing the deactivated Bose Cloud Service to maintain 100% of the smart speaker functionality of your SoundTouch Speakers and Wireless Link. Physical Presets Included!**
 
@@ -8,7 +8,7 @@ It runs locally on your network (NAS, PC, or Home Assistant add-on) and intercep
 
 ---
 
-## ⚠️ Upgrading to v4.4
+## ⚠️ Upgrading to v4.5
 
 * **Application settings are being reinitialized.** Startup detects the old settings schema and backs up your existing `settings.json` to `settings.json.bak`. Re-configure Scheduled Play/Off, Power Off Timers, and other preferences on first boot.
 * **New `.env` schema in v4.2.** Startup copies a fresh `.env` template if neeeded into your directory and backs up your old file. Re-enter your values into the new `.env`.  Don't reuse your old `.env` file 
@@ -17,15 +17,12 @@ It runs locally on your network (NAS, PC, or Home Assistant add-on) and intercep
 
 ---
 
-## ✨ V4.4 Enhancements
+## ✨ V4.x Enhancements
+
+*(Full descriptions of all features below in **Application Key Features**. This is quick "What's new".)*
 
 * ✅ Changed Clock time drift audit to always run on start up (#189)
 * ✅ Added option to also enforce UI Volume Min/Max Volume Slider Limits when pressing Physical speaker volumn buttons (#187)
-
----
-
-## ✨ V4.3 Enhancements
-
 * ✅ Added Volume Min/Max Volume Slider Limits (#186, #187)
 * ✅ Added "Always Play Latest Episode" to Library/Preset podcasts (#168)
 * ✅ Added Preset Volume options to assigned presets (#174)
@@ -36,13 +33,6 @@ It runs locally on your network (NAS, PC, or Home Assistant add-on) and intercep
 * ✅ Favorites filter buttons center correctly on mobile
 * ✅ Manual Setup Guide mobile close button fix
 * ✅ Speaker list rows (Configured Speakers / Scan Results) no longer get clipped on mobile
-
----
-
-## ✨ V4.2 Enhancements
-
-*(Full descriptions of all features below in **Application Key Features**. This is quick "What's new".)*
-
 * ✅ Extended Physical Presets — 12 total preset slots via double-tap, up from 6
 * ✅ Native Home Assistant Add-on 
 * ✅ Fully automated Bose Cloud injection sequence — no USB stick, no manual firmware step
